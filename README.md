@@ -53,12 +53,25 @@ The agent will generate themed HTML, inject the annotation system, and deploy to
 
 ## Themes
 
-| Theme | Style | Best For |
-|-------|-------|----------|
-| `editorial` | Warm gray, serif body, 740px column | Deep analysis, research reports (default) |
-| `magazine` | Dark hero, Playfair Display, red accent | High-impact editorial pieces |
-| `swiss` | Pure white, IBM Plex Mono, grid layout | Technical specs, engineering docs |
-| `refined` | Cream + gold, Cormorant Garamond, parchment | Executive briefs, premium white papers |
+### Editorial — Long-form analysis (default)
+Warm gray, serif body, 740px narrow column. Best for deep analysis, research reports.
+
+![Editorial theme](screenshots/editorial.png)
+
+### Magazine — Dramatic editorial
+Dark hero header, Playfair Display headings, red accent, section numbering. Best for high-impact reports.
+
+![Magazine theme](screenshots/magazine.png)
+
+### Swiss — International style
+Pure white, IBM Plex Mono, black+red+blue grid layout, 900px. Best for technical specs, engineering docs.
+
+![Swiss theme](screenshots/swiss.png)
+
+### Refined — Premium feel
+Cream background with parchment texture, Cormorant Garamond, gold + sage accents, 700px centered. Best for executive briefs.
+
+![Refined theme](screenshots/refined.png)
 
 ## How It Works
 
