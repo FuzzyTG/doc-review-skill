@@ -87,6 +87,13 @@ if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" || -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$CF_CREDS")"
 fi
 
+# Auto-inject annotation CSS + JS into index.html if present
+INJECT_SCRIPT="$SCRIPT_DIR/inject-annotations.sh"
+ANNOTATE_TEMPLATE="$REFERENCES_DIR/annotate-template.html"
+if [[ -f "$DEPLOY_DIR/index.html" && -f "$INJECT_SCRIPT" && -f "$ANNOTATE_TEMPLATE" ]]; then
+  bash "$INJECT_SCRIPT" "$DEPLOY_DIR/index.html" "$ANNOTATE_TEMPLATE"
+fi
+
 echo "🔒 Setting up protected doc-review deploy..."
 mkdir -p "$DEPLOY_DIR/functions/api"
 cp "$ANNOTATIONS_API_TEMPLATE" "$DEPLOY_DIR/functions/api/annotations.js"

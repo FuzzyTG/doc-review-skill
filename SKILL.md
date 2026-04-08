@@ -30,10 +30,7 @@ Deploy articles/documents to Cloudflare Pages with inline text annotation suppor
      --theme editorial
    ```
    (Use the `references/render.js` path relative to this skill directory)
-3. Inject annotation JS from `references/annotate-template.html` into the rendered `index.html`:
-   - Copy the `<style>` block before `</head>`
-   - Copy the `<script>` block and annotation HTML elements before `</body>`
-4. Deploy with the protected-only script:
+3. Deploy with the protected-only script (annotation injection is automatic):
 
 ```bash
 bash scripts/deploy.sh <project-name> <directory> <db-name> <db-id>
