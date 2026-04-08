@@ -51,6 +51,14 @@ Once installed, tell your OpenClaw agent:
 
 The agent will generate themed HTML, inject the annotation system, and deploy to Cloudflare Pages.
 
+## Password Protection
+
+Every review page requires a password. This provides **basic spam prevention only** — it is not a secure authentication system. Anyone with the password can access and annotate the page, making it easy to share with multiple reviewers.
+
+- **Not for sensitive data** — the password is a simple shared secret, not per-user authentication
+- **Cookie-based session** — after entering the password, a cookie is set that expires after **24 hours**; reviewers will need to re-enter the password after that
+- If no password is specified at deploy time, one is auto-generated (speakable format like `maple-river-velvet-64`)
+
 ## Themes
 
 ### Editorial — Long-form analysis (default)
