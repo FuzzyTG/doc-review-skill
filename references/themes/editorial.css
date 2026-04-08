@@ -1,0 +1,374 @@
+/* theme: editorial — 长文分析风格 */
+/* Serif 正文 + Sans 标题，暖灰底，深蓝灰色调，适合深度分析、择校报告、竞品分析等长文 */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 17px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: "Charter", "Noto Serif SC", "Source Han Serif SC", "Songti SC",
+               Georgia, "Times New Roman", serif;
+  color: #1a1a1a;
+  background: #f7f5f2;
+  line-height: 1.78;
+  padding: 3rem 1.5rem 6rem;
+}
+
+/* ── Layout Container ── */
+.content {
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+/* ── Metadata Header ── */
+.meta-header {
+  border-bottom: 3px solid #2c3e50;
+  padding-bottom: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+.meta-header .category-badge {
+  display: inline-block;
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #2c3e50;
+  padding: 0.25em 0.75em;
+  border-radius: 3px;
+  margin-bottom: 1rem;
+}
+
+.meta-header h1 {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.meta-header .subtitle {
+  font-size: 1.05rem;
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 1.2rem;
+}
+
+.meta-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 0.78rem;
+  color: #777;
+}
+
+.meta-details span { white-space: nowrap; }
+.meta-details .label { font-weight: 600; color: #555; }
+
+/* ── Keywords ── */
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.keywords .kw {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 0.68rem;
+  color: #5a7a96;
+  background: #e8eff5;
+  padding: 0.2em 0.6em;
+  border-radius: 3px;
+}
+
+/* ── Typography ── */
+h1 {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #1a1a1a;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-top: 3.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #d4dbe2;
+  letter-spacing: -0.005em;
+}
+
+h3 {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+  color: #34495e;
+  margin-top: 2.2rem;
+  margin-bottom: 0.7rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+/* ── Section Dividers ── */
+hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #c5cdd6, transparent);
+  margin: 3rem 0;
+}
+
+/* ── Callout Boxes ── */
+.callout {
+  background: #eef3f8;
+  border-left: 4px solid #2c3e50;
+  padding: 1.1rem 1.4rem;
+  margin: 1.5rem 0;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.97rem;
+}
+
+.callout p { margin-bottom: 0; }
+
+.callout-conclusion {
+  background: #f0f7ee;
+  border-left-color: #3a7d34;
+}
+
+.callout-conclusion strong { color: #2c6127; }
+
+.callout-warning {
+  background: #fdf5e6;
+  border-left-color: #c2912e;
+}
+
+.callout-important {
+  background: #fef2f1;
+  border-left-color: #b33a3a;
+}
+
+/* ── Bold highlights in body ── */
+strong {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+thead th {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: #2c3e50;
+  color: #fff;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+thead th:first-child { border-radius: 6px 0 0 0; }
+thead th:last-child { border-radius: 0 6px 0 0; }
+
+tbody td {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #e4e8ec;
+  vertical-align: top;
+}
+
+tbody tr:nth-child(even) { background: #f5f7fa; }
+tbody tr:hover { background: #ebeff4; }
+
+tbody tr:last-child td:first-child { border-radius: 0 0 0 6px; }
+tbody tr:last-child td:last-child { border-radius: 0 0 6px 0; }
+
+/* ── Lists ── */
+ul, ol {
+  margin: 0.8rem 0 1rem 1.6rem;
+}
+
+li {
+  margin-bottom: 0.4rem;
+}
+
+li::marker {
+  color: #7a8d9e;
+}
+
+/* ── Ordered list: Reasoning Chain ── */
+.reasoning-chain ol {
+  counter-reset: step;
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.reasoning-chain ol li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.reasoning-chain ol li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.12em;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: #2c3e50;
+  color: #fff;
+  border-radius: 50%;
+  font-family: "Inter", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Path Cards ── */
+.path-card {
+  background: #fff;
+  border: 1px solid #dde3e9;
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  margin: 0.8rem 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.path-card .path-label {
+  font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #2c3e50;
+  margin-bottom: 0.3rem;
+}
+
+.path-card.recommended {
+  border-color: #3a7d34;
+  border-width: 2px;
+  background: #fafdf9;
+}
+
+.path-card.recommended .path-label { color: #3a7d34; }
+
+/* ── Final Recommendation Box ── */
+.final-rec {
+  background: linear-gradient(135deg, #2c3e50 0%, #3d5a73 100%);
+  color: #fff;
+  padding: 1.8rem 2rem;
+  border-radius: 10px;
+  margin: 2rem 0;
+  box-shadow: 0 4px 16px rgba(44,62,80,0.18);
+}
+
+.final-rec strong { color: #fff; }
+.final-rec p { color: rgba(255,255,255,0.9); margin-bottom: 0; }
+
+/* ── Action Items ── */
+.action-items ol {
+  counter-reset: action;
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.action-items ol li {
+  counter-increment: action;
+  position: relative;
+  padding: 0.9rem 1rem 0.9rem 3.2rem;
+  margin-bottom: 0.6rem;
+  background: #fff;
+  border: 1px solid #e0e5eb;
+  border-radius: 6px;
+}
+
+.action-items ol li::before {
+  content: counter(action);
+  position: absolute;
+  left: 0.9rem;
+  top: 0.9rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: #e8eff5;
+  color: #2c3e50;
+  border-radius: 50%;
+  font-family: "Inter", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Disclaimer ── */
+.disclaimer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d4dbe2;
+  font-size: 0.82rem;
+  color: #888;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  html { font-size: 15px; }
+  body { padding: 1.5rem 1rem 4rem; }
+  h1, .meta-header h1 { font-size: 1.55rem; }
+  h2 { font-size: 1.25rem; }
+  table { font-size: 0.82rem; }
+  .meta-details { flex-direction: column; gap: 0.3rem; }
+}
+
+/* ── Section Divider ── */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin: 3rem 0 2rem;
+}
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.2;
+}
+.section-divider .num {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}

@@ -1,0 +1,362 @@
+/* theme: swiss — 瑞士国际主义风格 */
+/* IBM Plex Mono 正文 + Instrument Serif 标题，纯白底，黑+红+蓝，网格布局，极简理性 */
+/* 需要 Google Fonts: IBM Plex Mono, Instrument Serif */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --black: #111;
+  --white: #fff;
+  --gray-1: #f5f5f5;
+  --gray-2: #e0e0e0;
+  --gray-3: #999;
+  --gray-4: #666;
+  --red: #e20;
+  --blue: #0055ff;
+}
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  font-family: "IBM Plex Mono", "SF Mono", "PingFang SC", monospace;
+  color: var(--black);
+  background: var(--white);
+  line-height: 1.7;
+  font-size: 0.88rem;
+}
+
+/* ── Page Container ── */
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+}
+
+/* ── Header ── */
+.header {
+  padding: 5rem 0 3rem;
+  border-bottom: 3px solid var(--black);
+  margin-bottom: 0;
+}
+
+.header-grid {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 3rem;
+  align-items: end;
+}
+
+.header h1, h1 {
+  font-family: "Instrument Serif", "Songti SC", serif;
+  font-size: 3.6rem;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--black);
+}
+
+.header h1 span.slash, h1 span.slash {
+  color: var(--red);
+  font-style: italic;
+}
+
+.header-sidebar {
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--gray-4);
+  border-left: 1px solid var(--black);
+  padding-left: 1.5rem;
+}
+
+.header-sidebar .field { margin-bottom: 0.6rem; }
+.header-sidebar .label { color: var(--gray-3); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.62rem; display: block; }
+.header-sidebar .value { color: var(--black); }
+
+.abstract-bar {
+  margin-top: 2rem;
+  padding: 1.2rem 0;
+  border-top: 1px solid var(--gray-2);
+  font-family: "Instrument Serif", serif;
+  font-size: 1.1rem;
+  font-style: italic;
+  color: var(--gray-4);
+  line-height: 1.6;
+}
+
+/* ── Sections ── */
+.section {
+  padding: 3rem 0;
+  border-bottom: 1px solid var(--gray-2);
+}
+
+.section:last-child { border-bottom: none; }
+
+.section-header {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 0;
+  margin-bottom: 2rem;
+}
+
+.section-number {
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: var(--red);
+  line-height: 1;
+  padding-top: 0.15rem;
+}
+
+.section-title {
+  font-family: "Instrument Serif", "Songti SC", serif;
+  font-size: 1.6rem;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--black);
+  padding-top: 0.3rem;
+}
+
+h2 {
+  font-family: "Instrument Serif", "Songti SC", serif;
+  font-size: 1.6rem;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--black);
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+h3 {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--black);
+  margin-top: 2.5rem;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--gray-2);
+}
+
+p { margin-bottom: 1rem; color: #333; }
+
+strong { font-weight: 600; color: var(--black); }
+
+/* ── Dividers ── */
+hr { display: none; }
+
+/* ── Callouts ── */
+.callout {
+  background: var(--gray-1);
+  margin: 1.5rem 0;
+  padding: 1.2rem 1.5rem;
+  position: relative;
+}
+
+.callout::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--black);
+}
+
+.callout p { margin-bottom: 0; }
+
+.callout-conclusion::before { background: var(--blue); }
+.callout-conclusion { background: #f0f4ff; }
+
+.callout-warning::before { background: var(--red); }
+.callout-warning { background: #fff5f0; }
+
+.callout-important::before { background: var(--red); }
+.callout-important { background: #fff5f0; }
+
+/* ── Final Recommendation ── */
+.final-rec {
+  background: var(--black);
+  color: var(--white);
+  padding: 2.2rem 2rem;
+  margin: 2rem 0;
+  font-family: "Instrument Serif", serif;
+  font-size: 1.3rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.final-rec strong { color: var(--white); }
+.final-rec p { color: rgba(255,255,255,0.85); margin-bottom: 0; }
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.82rem;
+}
+
+thead th {
+  text-align: left;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gray-3);
+  padding: 0.6rem 0.8rem;
+  border-bottom: 2px solid var(--black);
+}
+
+tbody td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--gray-2);
+  vertical-align: top;
+}
+
+tbody tr:hover { background: var(--gray-1); }
+
+/* ── Lists ── */
+ul, ol { margin: 0.8rem 0 1.2rem 1.4rem; }
+li { margin-bottom: 0.4rem; color: #333; }
+li::marker { color: var(--red); font-weight: 600; }
+
+/* ── Path Cards ── */
+.path-card {
+  border: 1px solid var(--gray-2);
+  padding: 1rem 1.2rem;
+  margin: 0.6rem 0;
+}
+
+.path-card .path-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gray-3);
+  margin-bottom: 0.3rem;
+}
+
+.path-card p { margin-bottom: 0; font-size: 0.85rem; }
+
+.path-card.recommended {
+  border-color: var(--red);
+  border-width: 2px;
+}
+
+.path-card.recommended .path-label { color: var(--red); }
+
+/* ── Reasoning Chain ── */
+.reasoning-chain ol {
+  counter-reset: chain;
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.reasoning-chain ol li {
+  counter-increment: chain;
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 0;
+  margin-bottom: 0;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--gray-2);
+}
+
+.reasoning-chain ol li:last-child { border-bottom: none; }
+
+.reasoning-chain ol li::before {
+  content: counter(chain, decimal-leading-zero);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--red);
+  padding-top: 0.15rem;
+}
+
+/* ── Action Items ── */
+.action-items ol {
+  counter-reset: act;
+  list-style: none;
+  margin: 0; padding: 0;
+}
+
+.action-items ol li {
+  counter-increment: act;
+  position: relative;
+  padding: 1rem 0 1rem 50px;
+  border-bottom: 1px solid var(--gray-2);
+}
+
+.action-items ol li:last-child { border-bottom: none; }
+
+.action-items ol li::before {
+  content: counter(act);
+  position: absolute;
+  left: 0;
+  top: 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--red);
+}
+
+/* ── Keywords ── */
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+}
+
+.keywords .kw {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray-3);
+  border: 1px solid var(--gray-2);
+  padding: 0.15em 0.5em;
+}
+
+/* ── Disclaimer ── */
+.disclaimer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--gray-2);
+  font-size: 0.75rem;
+  color: var(--gray-3);
+  font-style: italic;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .header-grid { grid-template-columns: 1fr; gap: 2rem; }
+  h1, .header h1 { font-size: 2.4rem; }
+  .header-sidebar { border-left: none; padding-left: 0; border-top: 1px solid var(--gray-2); padding-top: 1rem; }
+  .section-header { grid-template-columns: 40px 1fr; }
+  .section-number { font-size: 1.6rem; }
+  .section-title { font-size: 1.3rem; }
+  .content { padding: 0 1.2rem 4rem; }
+}
+
+/* ── Section Divider ── */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin: 3rem 0 2rem;
+}
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.2;
+}
+.section-divider .num {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}

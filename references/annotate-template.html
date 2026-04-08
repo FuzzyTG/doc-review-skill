@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Review</title>
+<style>
+  /* ── Review UI Variables (themes override these) ── */
+  :root {
+    --rv-bg: #f5f5f5;
+    --rv-surface: #fff;
+    --rv-ink: #333;
+    --rv-ink-strong: #1a1a1a;
+    --rv-muted: #999;
+    --rv-subtle: #aaa;
+    --rv-border: #eee;
+    --rv-border-input: #ddd;
+    --rv-highlight: #fff3a8;
+    --rv-highlight-hover: #ffe066;
+    --rv-accent: #f0c040;
+    --rv-accent-text: #997a00;
+    --rv-comment-bg: #f9f9f9;
+    --rv-danger: #e74c3c;
+    --rv-danger-bg: #ffeaea;
+    --rv-confirm-cancel-bg: #f0f0f0;
+    --rv-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--rv-font); background: var(--rv-bg); color: var(--rv-ink); }
+  .container { max-width: 720px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: var(--rv-ink-strong); }
+  .meta { font-size: 14px; color: var(--rv-subtle); margin-bottom: 32px; }
+  .article { background: var(--rv-surface); border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); line-height: 1.8; font-size: 16px; }
+  .article p { margin-bottom: 20px; }
+  .article h2 { font-size: 20px; margin: 28px 0 12px; color: var(--rv-ink-strong); }
+  .annotation-highlight {
+    background: var(--rv-highlight); border-bottom: 2px solid var(--rv-accent); cursor: pointer;
+    border-radius: 2px; transition: background 0.2s; position: relative;
+  }
+  .annotation-highlight:hover { background: var(--rv-highlight-hover); }
+  .annotation-highlight .comment-count {
+    position: absolute; top: -8px; right: -8px;
+    background: var(--rv-accent); color: var(--rv-ink); font-size: 10px; font-weight: 700;
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; pointer-events: none;
+  }
+  .add-tooltip {
+    position: absolute; display: none; z-index: 100;
+    background: var(--rv-ink); color: var(--rv-surface); padding: 6px 14px; border-radius: 6px;
+    font-size: 13px; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2); transform: translateX(-50%); user-select: none;
+  }
+  .add-tooltip::after {
+    content: ''; position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--rv-ink);
+  }
+  .comment-panel {
+    position: fixed; right: -400px; top: 0; width: 380px; height: 100vh;
+    background: var(--rv-surface); box-shadow: -2px 0 12px rgba(0,0,0,0.1);
+    transition: right 0.3s ease; z-index: 200; display: flex; flex-direction: column;
+  }
+  .comment-panel.open { right: 0; }
+  .comment-panel-header {
+    padding: 20px; border-bottom: 1px solid var(--rv-border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .comment-panel-header h3 { font-size: 16px; color: var(--rv-ink-strong); }
+  .comment-panel-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--rv-muted); }
+  .comment-panel-quote {
+    padding: 14px 16px; background: var(--rv-highlight); border-radius: 8px;
+    margin: 16px; font-size: 14px; color: var(--rv-ink); font-style: italic;
+    max-height: 100px; overflow-y: auto;
+  }
+  .comment-list { overflow-y: auto; padding: 0 16px; max-height: calc(100vh - 350px); }
+  .comment-item { padding: 12px; margin-bottom: 8px; background: var(--rv-comment-bg); border-radius: 8px; font-size: 14px; }
+  .comment-item .comment-author { font-weight: 600; color: var(--rv-ink); margin-bottom: 4px; }
+  .comment-item .comment-time { font-size: 12px; color: var(--rv-subtle); }
+  .comment-item .comment-text { margin-top: 6px; line-height: 1.5; }
+  .comment-item { position: relative; }
+  .comment-delete {
+    position: absolute; top: 8px; right: 8px; background: none; border: none;
+    color: #ccc; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;
+  }
+  .comment-delete:hover { color: var(--rv-danger); background: var(--rv-danger-bg); }
+  .delete-annotation-btn {
+    margin: 0 16px 12px; padding: 8px; background: none; border: 1px solid var(--rv-border-input);
+    border-radius: 6px; color: var(--rv-muted); cursor: pointer; font-size: 13px; width: calc(100% - 32px);
+  }
+  .delete-annotation-btn:hover { color: var(--rv-danger); border-color: var(--rv-danger); background: var(--rv-danger-bg); }
+  .panel-back {
+    background: none; border: none; font-size: 14px; cursor: pointer; color: var(--rv-muted);
+    padding: 0; display: flex; align-items: center; gap: 4px;
+  }
+  .panel-back:hover { color: var(--rv-ink); }
+  .ann-list { overflow-y: auto; padding: 16px 16px 0; max-height: calc(100vh - 200px); }
+  .ann-list-item {
+    padding: 14px; margin-bottom: 8px; background: var(--rv-highlight); border-radius: 8px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .ann-list-item:hover { background: var(--rv-highlight-hover); }
+  .ann-list-quote {
+    font-size: 14px; color: var(--rv-ink); font-style: italic; margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    padding: 0;
+  }
+  .ann-list-meta { font-size: 12px; color: var(--rv-accent-text); }
+  .annotation-highlight.flash {
+    animation: ann-flash 1.5s ease;
+  }
+  @keyframes ann-flash {
+    0%, 30% { background: var(--rv-highlight-hover); box-shadow: 0 0 8px rgba(240,192,64,0.6); }
+    100% { background: var(--rv-highlight); box-shadow: none; }
+  }
+  .comment-input-area { padding: 16px; border-top: 1px solid var(--rv-border); }
+  .comment-input-area textarea {
+    width: 100%; height: 80px; border: 1px solid var(--rv-border-input); border-radius: 8px;
+    padding: 10px; font-size: 14px; resize: none; font-family: inherit;
+    background: var(--rv-surface); color: var(--rv-ink);
+  }
+  .comment-input-area textarea:focus { outline: none; border-color: var(--rv-accent); }
+  .comment-input-area button {
+    margin-top: 8px; padding: 8px 20px; background: var(--rv-ink); color: var(--rv-surface);
+    border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+  }
+  .comment-input-area button:hover { opacity: 0.8; }
+  .sidebar-badge {
+    position: fixed; top: 20px; right: 20px; background: var(--rv-accent); color: var(--rv-ink);
+    padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 50;
+  }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.15); z-index: 150; display: none; }
+  .overlay.show { display: block; }
+  .custom-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+  .custom-confirm-box { background: var(--rv-surface); border-radius: 12px; padding: 24px; max-width: 300px; width: 85%; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .custom-confirm-box p { margin: 0 0 20px; font-size: 15px; color: var(--rv-ink); line-height: 1.5; }
+  .custom-confirm-btns { display: flex; gap: 12px; }
+  .custom-confirm-btns button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+  .custom-confirm-cancel { background: var(--rv-confirm-cancel-bg); color: var(--rv-ink); }
+  .custom-confirm-ok { background: var(--rv-danger); color: #fff; }
+  .hint { text-align: center; color: var(--rv-subtle); font-size: 13px; margin-top: 20px; }
+  .icon { display: inline-block; vertical-align: middle; width: 16px; height: 16px; margin-right: 4px; }
+  .icon-lg { width: 18px; height: 18px; }
+  .sidebar-badge .icon { margin-right: 6px; }
+  .add-tooltip .icon { margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Q2 Product Strategy Review</h1>
+  <div class="meta">Draft v0.3 · April 2026 · Confidential</div>
+  <div class="article" id="article">
+    <h2>Executive Summary</h2>
+    <p>Our Q1 performance exceeded expectations with a 23% increase in monthly active users and a 15% improvement in retention rates. The AI-powered features launched in February contributed to a 35% increase in daily user engagement, with the smart suggestion engine seeing a 40% adoption rate within the first month.</p>
+    <p>However, we observed a concerning trend in our enterprise segment. Churn rate increased from 4.2% to 5.8%, primarily driven by competitors offering more robust API integrations. This needs immediate attention in Q2.</p>
+    <h2>Key Initiatives for Q2</h2>
+    <p>We propose three major initiatives: First, launching a comprehensive API platform that allows enterprise customers to build custom integrations. Second, expanding our AI capabilities with real-time collaboration features. Third, entering the Southeast Asian market with localized versions for Vietnam, Thailand, and Indonesia.</p>
+    <p>The API platform is our highest priority. Based on customer interviews, 67% of churned enterprise accounts cited "lack of integration flexibility" as their primary reason for leaving. We estimate that a well-designed API could recover 30-40% of these accounts.</p>
+    <h2>Resource Allocation</h2>
+    <p>We recommend shifting 20% of the mobile team to API development for the next two quarters. This will delay the planned iOS widget feature by approximately 6 weeks, but the revenue impact of reducing enterprise churn far outweighs the consumer feature delay.</p>
+    <p>Total budget request for Q2 initiatives: $2.4M, broken down as API Platform ($1.2M), AI Features ($800K), and APAC Expansion ($400K). This represents a 15% increase over Q1 spending but is projected to deliver 3x ROI by Q4.</p>
+    <h2>Risk Assessment</h2>
+    <p>The primary risk is execution speed. Our competitors are not standing still — Company X announced their API beta last week, and Company Y is reportedly hiring aggressively for their APAC expansion. We have a 3-month window to establish our position before the market becomes significantly more competitive.</p>
+  </div>
+  <p class="hint" id="hintText"></p>
+</div>
+
+<div class="add-tooltip" id="addTooltip"></div>
+<div class="sidebar-badge" id="sidebarBadge" style="display:none;"><span id="badgeIcon"></span><span id="totalCount">0</span> <span id="badgeLabel"></span></div>
+<div class="overlay" id="overlay"></div>
+
+<div class="comment-panel" id="commentPanel">
+  <div class="comment-panel-header">
+    <button class="panel-back" id="panelBack" style="display:none;">← </button>
+    <h3 id="panelTitle"></h3>
+    <button class="comment-panel-close" id="closePanel">&times;</button>
+  </div>
+  <div class="ann-list" id="annList"></div>
+  <div class="comment-panel-quote" id="panelQuote" style="display:none;"></div>
+  <div class="comment-list" id="commentList" style="display:none;"></div>
+  <div class="comment-input-area" id="commentInputArea" style="display:none;">
+    <textarea id="commentInput"></textarea>
+    <button id="submitComment"></button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/annotations';
+  let annotations = [];
+  let currentAnnotationId = null;
+  let pendingSelection = null;
+  let submitting = false;
+
+  // Custom confirm dialog (works in Telegram WebView where native confirm() fails)
+  function customConfirm(message) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'custom-confirm-overlay';
+      overlay.innerHTML = '<div class="custom-confirm-box"><p>' + message + '</p><div class="custom-confirm-btns"><button class="custom-confirm-cancel">Cancel</button><button class="custom-confirm-ok">OK</button></div></div>';
+      document.body.appendChild(overlay);
+      overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => { overlay.remove(); resolve(false); });
+      overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => { overlay.remove(); resolve(true); });
+    });
+  }
+
+  // SVG icons
+  const icons = {
+    comment: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    cursor: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
+    hint: '<svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+  };
+
+  // i18n
+  const i18n = {
+    zh: { addAnnotation: icons.cursor + ' 添加批注', annotations: '批注', allAnnotations: '所有批注', badgeLabel: '条批注', noComments: '暂无评论', noAnnotations: '暂无批注', placeholder: '写下你的评论...', submit: '提交评论', submitting: '提交中...', hint: icons.hint + ' 选中任意文字即可添加批注', deleteAnnotation: '删除此批注', confirmDeleteAnnotation: '确定删除这条批注及所有评论？', confirmDeleteComment: '确定删除这条评论？', commentsCount: '条评论', locateInText: '点击定位到原文' },
+    en: { addAnnotation: icons.cursor + ' Annotate', annotations: 'Annotations', allAnnotations: 'All Annotations', badgeLabel: 'annotations', noComments: 'No comments yet', noAnnotations: 'No annotations yet', placeholder: 'Write your comment...', submit: 'Submit', submitting: 'Submitting...', hint: icons.hint + ' Select any text to add an annotation', deleteAnnotation: 'Delete annotation', confirmDeleteAnnotation: 'Delete this annotation and all comments?', confirmDeleteComment: 'Delete this comment?', commentsCount: 'comments', locateInText: 'Click to locate in text' }
+  };
+  const lang = (navigator.language || 'en').startsWith('zh') ? 'zh' : 'en';
+  const t = i18n[lang];
+
+  const article = document.getElementById('article') || document.body;
+  const tooltip = document.getElementById('addTooltip');
+  const panel = document.getElementById('commentPanel');
+  const overlay = document.getElementById('overlay');
+  const badge = document.getElementById('sidebarBadge');
+  const totalCount = document.getElementById('totalCount');
+  const panelQuote = document.getElementById('panelQuote');
+  const commentList = document.getElementById('commentList');
+  const commentInput = document.getElementById('commentInput');
+  const submitBtn = document.getElementById('submitComment');
+  const annList = document.getElementById('annList');
+  const panelBack = document.getElementById('panelBack');
+  const commentInputArea = document.getElementById('commentInputArea');
+
+  // Apply i18n
+  document.getElementById('addTooltip').innerHTML = t.addAnnotation;
+  document.getElementById('badgeIcon').innerHTML = icons.comment;
+  document.getElementById('badgeLabel').textContent = t.badgeLabel;
+  document.getElementById('panelTitle').textContent = t.annotations;
+  document.getElementById('hintText').innerHTML = t.hint;
+  commentInput.placeholder = t.placeholder;
+  submitBtn.textContent = t.submit;
+
+  async function loadAnnotations() {
+    try {
+      const r = await fetch(API);
+      annotations = await r.json();
+      renderHighlights();
+      updateBadge();
+    } catch(e) { console.error('Load failed', e); }
+  }
+
+  async function saveAnnotation(id, text, comment) {
+    try {
+      await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, text, comment })
+      });
+      await loadAnnotations();
+    } catch(e) { console.error('Save failed', e); }
+  }
+
+  function updateBadge() {
+    const count = annotations.length;
+    totalCount.textContent = count;
+    badge.style.display = count > 0 ? 'block' : 'none';
+  }
+
+  function genId() { return 'a' + Math.random().toString(36).slice(2, 10); }
+
+  function renderHighlights() {
+    article.querySelectorAll('.annotation-highlight').forEach(el => {
+      el.replaceWith(document.createTextNode(el.textContent));
+    });
+    article.normalize();
+    annotations.forEach(ann => highlightText(ann.text, ann.id, ann.comments ? ann.comments.length : 0));
+  }
+
+  function highlightText(searchText, annId, commentCount) {
+    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const idx = node.textContent.indexOf(searchText);
+      if (idx === -1) continue;
+      const range = document.createRange();
+      range.setStart(node, idx);
+      range.setEnd(node, idx + searchText.length);
+      const span = document.createElement('span');
+      span.className = 'annotation-highlight';
+      span.dataset.annId = annId;
+      if (commentCount > 0) {
+        const b = document.createElement('span');
+        b.className = 'comment-count';
+        b.textContent = commentCount;
+        span.appendChild(b);
+      }
+      range.surroundContents(span);
+      return;
+    }
+  }
+
+  document.addEventListener('mouseup', (e) => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      tooltip.style.display = 'none'; return;
+    }
+    const text = sel.toString().trim();
+    if (!text || text.length < 2) { tooltip.style.display = 'none'; return; }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+    tooltip.style.top = (rect.top - 40 + window.scrollY) + 'px';
+    tooltip.style.display = 'block';
+    pendingSelection = { text };
+  });
+
+  tooltip.addEventListener('click', () => {
+    if (!pendingSelection) return;
+    tooltip.style.display = 'none';
+    const existing = annotations.find(a => a.text === pendingSelection.text);
+    if (existing) {
+      openPanel(existing.id);
+    } else {
+      const ann = { id: genId(), text: pendingSelection.text, comments: [] };
+      annotations.push(ann);
+      saveAnnotation(ann.id, ann.text, null);
+      openPanel(ann.id);
+    }
+    window.getSelection().removeAllRanges();
+    pendingSelection = null;
+  });
+
+  article.addEventListener('click', (e) => {
+    const hl = e.target.closest('.annotation-highlight');
+    if (!hl) return;
+    openPanel(hl.dataset.annId);
+  });
+
+  function openPanel(annId) {
+    currentAnnotationId = annId;
+    const ann = annotations.find(a => a.id === annId);
+    if (!ann) return;
+    showDetailView(ann);
+    panel.classList.add('open');
+    overlay.classList.add('show');
+    commentInput.focus();
+  }
+
+  function openListView() {
+    currentAnnotationId = null;
+    showListView();
+    panel.classList.add('open');
+    overlay.classList.add('show');
+  }
+
+  function showListView() {
+    document.getElementById('panelTitle').textContent = t.allAnnotations;
+    panelBack.style.display = 'none';
+    annList.style.display = '';
+    panelQuote.style.display = 'none';
+    commentList.style.display = 'none';
+    commentInputArea.style.display = 'none';
+    // Remove lingering delete-annotation-btn
+    const delBtn = panel.querySelector('.delete-annotation-btn');
+    if (delBtn) delBtn.remove();
+
+    if (annotations.length === 0) {
+      annList.innerHTML = '<p style="color:#aaa;text-align:center;padding:40px;">' + t.noAnnotations + '</p>';
+      return;
+    }
+    annList.innerHTML = annotations.map(ann => {
+      const count = ann.comments ? ann.comments.length : 0;
+      const preview = ann.text.length > 80 ? ann.text.slice(0, 80) + '…' : ann.text;
+      return '<div class="ann-list-item" data-ann-id="' + ann.id + '">' +
+        '<div class="ann-list-quote">\u201c' + preview + '\u201d</div>' +
+        '<div class="ann-list-meta">' + count + ' ' + t.commentsCount + '</div>' +
+        '</div>';
+    }).join('');
+    annList.querySelectorAll('.ann-list-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const ann = annotations.find(a => a.id === item.dataset.annId);
+        if (ann) showDetailView(ann);
+      });
+    });
+  }
+
+  function showDetailView(ann) {
+    currentAnnotationId = ann.id;
+    document.getElementById('panelTitle').textContent = t.annotations;
+    panelBack.style.display = '';
+    annList.style.display = 'none';
+    panelQuote.style.display = '';
+    commentList.style.display = '';
+    commentInputArea.style.display = '';
+    panelQuote.textContent = '\u201c' + ann.text + '\u201d';
+    panelQuote.style.cursor = 'pointer';
+    panelQuote.title = t.locateInText;
+    panelQuote.onclick = () => scrollToHighlight(ann.id);
+    renderComments(ann);
+  }
+
+  function scrollToHighlight(annId) {
+    const el = article.querySelector('.annotation-highlight[data-ann-id="' + annId + '"]');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('flash');
+    void el.offsetWidth; // force reflow
+    el.classList.add('flash');
+  }
+
+  panelBack.addEventListener('click', () => showListView());
+
+  function renderComments(ann) {
+    const comments = ann.comments || [];
+    commentList.innerHTML = comments.map(c =>
+      '<div class="comment-item"><button class="comment-delete" data-comment-id="' + c.id + '" title="Delete">&times;</button><div class="comment-author">' + c.author +
+      ' <span class="comment-time">' + (c.created_at || '') + '</span></div>' +
+      '<div class="comment-text">' + c.text + '</div></div>'
+    ).join('') || '<p style="color:#aaa;text-align:center;padding:20px;">' + t.noComments + '</p>';
+    // Delete annotation button
+    const existing = commentList.parentNode.querySelector('.delete-annotation-btn');
+    if (existing) existing.remove();
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-annotation-btn';
+    delBtn.textContent = t.deleteAnnotation;
+    delBtn.addEventListener('click', () => deleteAnnotation(ann.id));
+    commentList.after(delBtn);
+    // Delete comment handlers
+    commentList.querySelectorAll('.comment-delete').forEach(btn => {
+      btn.addEventListener('click', () => deleteComment(ann.id, btn.dataset.commentId));
+    });
+  }
+
+  async function deleteComment(annId, commentId) {
+    if (!(await customConfirm(t.confirmDeleteComment))) return;
+    try {
+      const res = await fetch(API + '?id=' + annId + '&commentId=' + commentId, { method: 'DELETE' });
+      if (!res.ok) { console.error('Delete comment failed:', res.status, await res.text()); alert('Delete failed: ' + res.status); return; }
+    } catch(e) { console.error('Delete comment error:', e); alert('Delete error: ' + e.message); return; }
+    await loadAnnotations();
+    const ann = annotations.find(a => a.id === annId);
+    if (ann) { renderComments(ann); }
+    else { closePanel(); }
+  }
+
+  async function deleteAnnotation(annId) {
+    if (!(await customConfirm(t.confirmDeleteAnnotation))) return;
+    try {
+      const res = await fetch(API + '?id=' + annId, { method: 'DELETE' });
+      if (!res.ok) { console.error('Delete annotation failed:', res.status, await res.text()); alert('Delete failed: ' + res.status); return; }
+    } catch(e) { console.error('Delete annotation error:', e); alert('Delete error: ' + e.message); return; }
+    await loadAnnotations();
+    closePanel();
+  }
+
+  function closePanel() {
+    panel.classList.remove('open');
+    overlay.classList.remove('show');
+    currentAnnotationId = null;
+    commentInput.value = '';
+  }
+
+  document.getElementById('closePanel').addEventListener('click', closePanel);
+  overlay.addEventListener('click', closePanel);
+
+  document.getElementById('submitComment').addEventListener('click', async () => {
+    const text = commentInput.value.trim();
+    if (!text || !currentAnnotationId || submitting) return;
+    let author = localStorage.getItem('review_author');
+    if (!author) {
+      author = prompt(lang === 'zh' ? '请输入你的名字/ID：' : 'Enter your name/ID:');
+      if (!author || !author.trim()) return;
+      author = author.trim();
+      localStorage.setItem('review_author', author);
+    }
+    submitting = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = t.submitting;
+    try {
+      const ann = annotations.find(a => a.id === currentAnnotationId);
+      if (!ann) return;
+      await saveAnnotation(ann.id, ann.text, { author, text });
+      commentInput.value = '';
+      const updated = annotations.find(a => a.id === currentAnnotationId);
+      if (updated) renderComments(updated);
+      commentInput.focus();
+    } finally {
+      submitting = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = t.submit;
+    }
+  });
+
+  commentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      document.getElementById('submitComment').click();
+    }
+  });
+
+  badge.addEventListener('click', () => {
+    openListView();
+  });
+
+  loadAnnotations();
+})();
+</script>
+</body>
+</html>
