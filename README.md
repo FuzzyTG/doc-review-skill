@@ -83,10 +83,14 @@ Cream background with parchment texture, Cormorant Garamond, gold + sage accents
 
 ## How It Works
 
-1. Agent generates semantic HTML content
-2. `render.js` wraps it with the selected theme CSS
-3. Annotation JS/CSS from `annotate-template.html` is injected
-4. `deploy.sh` deploys to Cloudflare Pages with D1 backend + password middleware
+1. Tell your OpenClaw agent to deploy a document for review
+2. Agent generates themed HTML, injects the annotation system, and deploys to Cloudflare Pages
+3. Share the URL + password with reviewers
+4. **Reviewers select any text and leave inline comments** — no login required, comments persist in Cloudflare D1
+5. **Ask your agent to check feedback** — it queries D1 directly, reads all annotations and comments, then iterates on the document based on reviewer input
+6. Redeploy the updated version — old annotations on changed text auto-disappear
+
+The key value: **your OpenClaw agent closes the feedback loop automatically.** Reviewers comment → agent reads → agent revises → redeploy. No manual copy-pasting of feedback.
 
 ## File Structure
 
