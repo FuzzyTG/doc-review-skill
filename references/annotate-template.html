@@ -280,9 +280,11 @@
 
   function highlightText(searchText, annId, commentCount) {
     const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (const node of nodes) {
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    // Try single-node match first (fast path)
+    for (const node of textNodes) {
       const idx = node.textContent.indexOf(searchText);
       if (idx === -1) continue;
       const range = document.createRange();
@@ -299,6 +301,53 @@
       }
       range.surroundContents(span);
       return;
+    }
+
+    // Cross-node match: concatenate text nodes and find span across them
+    let concat = '';
+    const map = [];
+    for (const node of textNodes) {
+      const start = concat.length;
+      concat += node.textContent;
+      map.push({ node, start, end: concat.length });
+    }
+    const searchIdx = concat.indexOf(searchText);
+    if (searchIdx === -1) return;
+    const searchEnd = searchIdx + searchText.length;
+
+    let startNode, startOffset, endNode, endOffset;
+    for (const m of map) {
+      if (!startNode && m.end > searchIdx) {
+        startNode = m.node;
+        startOffset = searchIdx - m.start;
+      }
+      if (m.end >= searchEnd) {
+        endNode = m.node;
+        endOffset = searchEnd - m.start;
+        break;
+      }
+    }
+    if (!startNode || !endNode) return;
+
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+
+    const span = document.createElement('span');
+    span.className = 'annotation-highlight';
+    span.dataset.annId = annId;
+    if (commentCount > 0) {
+      const b = document.createElement('span');
+      b.className = 'comment-count';
+      b.textContent = commentCount;
+      span.appendChild(b);
+    }
+    try {
+      range.surroundContents(span);
+    } catch (_) {
+      const frag = range.extractContents();
+      span.appendChild(frag);
+      range.insertNode(span);
     }
   }
 
