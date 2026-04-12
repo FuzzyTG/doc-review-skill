@@ -39,11 +39,11 @@ export async function onRequestDelete(context) {
 export async function onRequestPost(context) {
   const db = context.env.DB;
   const body = await context.request.json();
-  const { id, text, comment } = body;
+  const { id, text, comment, prefix, suffix } = body;
   if (!id || !text) return new Response('Missing fields', { status: 400 });
 
-  // Upsert annotation
-  await db.prepare('INSERT OR IGNORE INTO annotations (id, text) VALUES (?, ?)').bind(id, text).run();
+  // Upsert annotation (prefix/suffix for W3C TextQuoteSelector positioning)
+  await db.prepare('INSERT OR IGNORE INTO annotations (id, text, prefix, suffix) VALUES (?, ?, ?, ?)').bind(id, text, prefix || null, suffix || null).run();
 
   // Add comment if provided
   if (comment && comment.text) {

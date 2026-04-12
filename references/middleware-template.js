@@ -1,14 +1,10 @@
-// IMPORTANT: Replace this value on each deployment
-const PASSWORD = '__REPLACE_WITH_ACTUAL_PASSWORD__';
+// Password is read from Cloudflare Secret (env.PAGE_PASSWORD), not hardcoded
 const COOKIE_NAME = 'auth_token';
 const AUTH_MAX_AGE = 86400; // 24h
 
-function hashPassword(pwd) {
-  let h = 0;
-  for (let i = 0; i < pwd.length; i++) {
-    h = ((h << 5) - h + pwd.charCodeAt(i)) | 0;
-  }
-  return h.toString(36);
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 const LOGIN_HTML = `<!DOCTYPE html>
@@ -36,12 +32,18 @@ export async function onRequest(context) {
   const { request, next, env } = context;
   const url = new URL(request.url);
 
+  const PASSWORD = env.PAGE_PASSWORD;
+  const SECRET = env.PAGE_SECRET;
+  if (!PASSWORD || !SECRET) {
+    return new Response('Server misconfigured: missing PAGE_PASSWORD or PAGE_SECRET secret', { status: 500 });
+  }
+
   // API routes go straight through (after auth check)
   if (url.pathname.startsWith('/api/')) {
-    // Check auth for API too
     const cookie = request.headers.get('Cookie') || '';
     const token = cookie.split(';').map(c => c.trim()).find(c => c.startsWith(COOKIE_NAME + '='));
-    if (!token || token.split('=')[1] !== hashPassword(PASSWORD)) {
+    const expectedToken = await sha256(SECRET + PASSWORD);
+    if (!token || token.split('=')[1] !== expectedToken) {
       return new Response('Unauthorized', { status: 401 });
     }
     return next();
@@ -52,11 +54,12 @@ export async function onRequest(context) {
     const form = await request.formData();
     const pwd = form.get('password');
     if (pwd === PASSWORD) {
+      const authToken = await sha256(SECRET + PASSWORD);
       return new Response(null, {
         status: 302,
         headers: {
           'Location': '/',
-          'Set-Cookie': `${COOKIE_NAME}=${hashPassword(PASSWORD)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${AUTH_MAX_AGE}`
+          'Set-Cookie': `${COOKIE_NAME}=${authToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${AUTH_MAX_AGE}`
         }
       });
     }
@@ -71,7 +74,8 @@ export async function onRequest(context) {
   // Auth check
   const cookie = request.headers.get('Cookie') || '';
   const token = cookie.split(';').map(c => c.trim()).find(c => c.startsWith(COOKIE_NAME + '='));
-  if (!token || token.split('=')[1] !== hashPassword(PASSWORD)) {
+  const expectedToken = await sha256(SECRET + PASSWORD);
+  if (!token || token.split('=')[1] !== expectedToken) {
     return new Response(null, { status: 302, headers: { 'Location': '/login' } });
   }
 

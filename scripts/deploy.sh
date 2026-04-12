@@ -1,21 +1,53 @@
 #!/usr/bin/env bash
 # Deploy a doc-review page to Cloudflare Pages with mandatory password protection
-# Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>]
+# Each deployment automatically creates a dedicated D1 database (1:1 with project)
+# Persistent state stored in ~/.openclaw/published-content/<project-name>/meta.json
+#
+# Usage: deploy.sh <project-name> <directory> [--password <password>]
+#        deploy.sh <project-name> --change-password <new-password>
+#
+# Project name MUST end with "-review" (enforced).
+# D1 database name is always "review-<project-name>" (deterministic).
+# Password stored in Cloudflare Secret (PAGE_PASSWORD), not locally.
 
 set -euo pipefail
 
+DOC_REVIEWS_DIR="$HOME/.openclaw/published-content"
+
 usage() {
-  echo "Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>]" >&2
+  echo "Usage: deploy.sh <project-name> <directory> [--password <password>]" >&2
+  echo "  project-name must end with '-review'" >&2
 }
 
-PROJECT_NAME="${1:?Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>] }"
-DEPLOY_DIR="${2:?Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>] }"
-DB_NAME="${3:?Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>] }"
-DB_ID="${4:?Usage: deploy.sh <project-name> <directory> <db-name> <db-id> [--password <password>] }"
-PASSWORD=""
-GENERATED_PASSWORD=0
+PROJECT_NAME="${1:?$(usage)}"
 
-shift 4
+# ── Change-password mode ──
+if [[ "${2:-}" == "--change-password" ]]; then
+  NEW_PW="${3:?--change-password requires a password value}"
+  PERSISTENT_DIR="$DOC_REVIEWS_DIR/$PROJECT_NAME"
+  META_FILE="$PERSISTENT_DIR/meta.json"
+  SNAPSHOT_DIR="$PERSISTENT_DIR/deploy-snapshot"
+  echo "🔑 Changing password for $PROJECT_NAME..."
+  printf '%s' "$NEW_PW" | npx wrangler pages secret put PAGE_PASSWORD --project-name="$PROJECT_NAME"
+  # Redeploy from snapshot (secrets require redeploy to take effect)
+  if [[ -d "$SNAPSHOT_DIR" ]]; then
+    cd "$SNAPSHOT_DIR"
+    npx wrangler pages deploy . --project-name="$PROJECT_NAME" --branch=main
+  else
+    echo "⚠️  No deploy snapshot found at $SNAPSHOT_DIR; secret updated but redeploy skipped"
+    echo "   Run a full deploy first to create the snapshot."
+  fi
+  if [[ -f "$META_FILE" ]]; then
+    jq --arg pw "$NEW_PW" '.password = $pw' "$META_FILE" > "$META_FILE.tmp" && mv "$META_FILE.tmp" "$META_FILE"
+  fi
+  echo "✅ Password changed to: $NEW_PW"
+  exit 0
+fi
+
+DEPLOY_DIR="${2:?$(usage)}"
+PASSWORD=""
+
+shift 2
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --password)
@@ -30,6 +62,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# ── Enforce -review suffix ──
+if [[ "$PROJECT_NAME" != *-review ]]; then
+  echo "❌ Project name must end with '-review' (got: $PROJECT_NAME)" >&2
+  echo "   Example: my-report-review" >&2
+  exit 1
+fi
+
+# ── Password resolution: arg > meta.json > generate ──
 generate_speakable_password() {
   local words=(
     amber apple bamboo berry cedar citrus cloud coral ember fern glacier harbor
@@ -53,9 +93,14 @@ generate_speakable_password() {
   echo "${w1}-${w2}-${w3}-${suffix}"
 }
 
+# Password resolution: arg > generate (no meta.json fallback; password stored in Cloudflare Secret)
+PERSISTENT_DIR="$DOC_REVIEWS_DIR/$PROJECT_NAME"
+META_FILE="$PERSISTENT_DIR/meta.json"
+PASSWORD_SOURCE="arg"
+
 if [[ -z "$PASSWORD" ]]; then
   PASSWORD="$(generate_speakable_password)"
-  GENERATED_PASSWORD=1
+  PASSWORD_SOURCE="generated"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,24 +115,46 @@ if [[ ! -f "$DEPLOY_DIR/index.html" ]]; then
   exit 1
 fi
 
-for required_file in "$ANNOTATIONS_API_TEMPLATE" "$MIDDLEWARE_TEMPLATE"; do
+for required_file in "$ANNOTATIONS_API_TEMPLATE" "$MIDDLEWARE_TEMPLATE" "$CF_CREDS"; do
   if [[ ! -f "$required_file" ]]; then
     echo "❌ Required file not found: $required_file" >&2
     exit 1
   fi
 done
 
-# Auth: prefer env vars, fall back to credentials JSON file
-if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" || -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
-  if [[ ! -f "$CF_CREDS" ]]; then
-    echo "❌ Set CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN env vars, or provide credentials at $CF_CREDS" >&2
+export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$CF_CREDS")"
+export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$CF_CREDS")"
+
+# ── Auto-create dedicated D1 database (1:1 per project) ──
+DB_NAME="review-${PROJECT_NAME}"
+echo "🗄️  Ensuring dedicated D1 database: $DB_NAME ..."
+CREATE_OUTPUT=$(npx wrangler d1 create "$DB_NAME" 2>&1) || {
+  if echo "$CREATE_OUTPUT" | grep -qi "already exists"; then
+    echo "ℹ️  D1 database '$DB_NAME' already exists (redeploy)"
+    DB_ID=$(npx wrangler d1 list --json 2>/dev/null | jq -r ".[] | select(.name==\"$DB_NAME\") | .uuid")
+    if [[ -z "$DB_ID" || "$DB_ID" == "null" ]]; then
+      echo "❌ Could not find existing DB id for '$DB_NAME'" >&2
+      exit 1
+    fi
+  else
+    echo "❌ Failed to create D1 database:" >&2
+    echo "$CREATE_OUTPUT" >&2
     exit 1
   fi
-  export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$CF_CREDS")"
-  export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$CF_CREDS")"
+}
+
+if [[ -z "${DB_ID:-}" ]]; then
+  DB_ID=$(echo "$CREATE_OUTPUT" | grep -oP '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+  if [[ -z "$DB_ID" ]]; then
+    echo "❌ Could not extract database_id from wrangler output:" >&2
+    echo "$CREATE_OUTPUT" >&2
+    exit 1
+  fi
 fi
 
-# Auto-inject annotation CSS + JS into index.html if present
+echo "✅ D1 database ready: $DB_NAME ($DB_ID)"
+
+# Auto-inject annotation CSS + HTML + JS into index.html if present
 INJECT_SCRIPT="$SCRIPT_DIR/inject-annotations.sh"
 ANNOTATE_TEMPLATE="$REFERENCES_DIR/annotate-template.html"
 if [[ -f "$DEPLOY_DIR/index.html" && -f "$INJECT_SCRIPT" && -f "$ANNOTATE_TEMPLATE" ]]; then
@@ -98,21 +165,6 @@ echo "🔒 Setting up protected doc-review deploy..."
 mkdir -p "$DEPLOY_DIR/functions/api"
 cp "$ANNOTATIONS_API_TEMPLATE" "$DEPLOY_DIR/functions/api/annotations.js"
 cp "$MIDDLEWARE_TEMPLATE" "$DEPLOY_DIR/functions/_middleware.js"
-
-python3 - "$DEPLOY_DIR/functions/_middleware.js" "$PASSWORD" <<'PY'
-from pathlib import Path
-import json
-import sys
-
-path = Path(sys.argv[1])
-password = sys.argv[2]
-text = path.read_text()
-placeholder = "const PASSWORD = '__REPLACE_WITH_ACTUAL_PASSWORD__';"
-replacement = f"const PASSWORD = {json.dumps(password)};"
-if placeholder not in text:
-    raise SystemExit('password placeholder not found in middleware template')
-path.write_text(text.replace(placeholder, replacement, 1))
-PY
 
 COMPATIBILITY_DATE="$(date +%Y-%m-%d)"
 
@@ -131,6 +183,8 @@ D1_SCHEMA=$(cat <<'SQL'
 CREATE TABLE IF NOT EXISTS annotations (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
+  prefix TEXT,
+  suffix TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS comments (
@@ -145,6 +199,9 @@ SQL
 
 cd "$DEPLOY_DIR"
 npx wrangler d1 execute "$DB_NAME" --remote --command "$D1_SCHEMA"
+# Migrate: add prefix/suffix columns (ignore errors if already exist)
+npx wrangler d1 execute "$DB_NAME" --remote --command "ALTER TABLE annotations ADD COLUMN prefix TEXT;" 2>/dev/null || true
+npx wrangler d1 execute "$DB_NAME" --remote --command "ALTER TABLE annotations ADD COLUMN suffix TEXT;" 2>/dev/null || true
 
 curl -s -X POST \
   "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
@@ -153,15 +210,88 @@ curl -s -X POST \
   -d "{\"name\":\"$PROJECT_NAME\",\"production_branch\":\"main\"}" \
   | jq -r 'if .success then "✅ Project ready: \(.result.name)" else "ℹ️  Project may already exist (continuing...)" end'
 
+# Set Cloudflare Secrets BEFORE deploy (so middleware can read them on first deployment)
+SECRET="cloudflare-pages-auth-$(printf '%s' "$PASSWORD" | sha256sum | cut -d' ' -f1)"
+echo "🔐 Setting Cloudflare Secrets..."
+
+set_secret() {
+  local name="$1" value="$2" attempt
+  for attempt in 1 2 3; do
+    if printf '%s' "$value" | npx wrangler pages secret put "$name" --project-name="$PROJECT_NAME" 2>&1 | tail -1; then
+      if [[ ${PIPESTATUS[1]} -eq 0 ]]; then
+        return 0
+      fi
+    fi
+    echo "⚠️  $name attempt $attempt failed, retrying in 3s..." >&2
+    sleep 3
+  done
+  echo "❌ Failed to set $name after 3 attempts" >&2
+  return 1
+}
+
+set_secret PAGE_PASSWORD "$PASSWORD" || exit 1
+set_secret PAGE_SECRET "$SECRET" || exit 1
+echo "✅ Secrets configured"
+
 echo "📤 Deploying $DEPLOY_DIR → $PROJECT_NAME.pages.dev ..."
 npx wrangler pages deploy . --project-name="$PROJECT_NAME" --branch=main
 
-echo ""
-echo "🌐 URL: https://$PROJECT_NAME.pages.dev"
-echo "🔒 Protection: Protected"
-if [[ "$GENERATED_PASSWORD" -eq 1 ]]; then
-  echo "🔑 Password (auto-generated): $PASSWORD"
-else
-  echo "🔑 Password: $PASSWORD"
+# ── Persist state to ~/published-content/<project-name>/ ──
+mkdir -p "$PERSISTENT_DIR"
+
+# Save source.html (pure semantic HTML) for future redeploy
+if [[ -f "$DEPLOY_DIR/content.html" ]]; then
+  cp "$DEPLOY_DIR/content.html" "$PERSISTENT_DIR/source.html"
 fi
+# Save rendered index.html (with CSS + annotations) as backup
+if [[ -f "$DEPLOY_DIR/index.html" ]]; then
+  cp "$DEPLOY_DIR/index.html" "$PERSISTENT_DIR/rendered.html"
+fi
+
+# Write/update meta.json (no password stored)
+NOW=$(date -Iseconds)
+if [[ -f "$META_FILE" ]]; then
+  python3 - "$META_FILE" "$NOW" "$DB_NAME" "$DB_ID" <<'PY'
+import json, sys
+path, now, db_name, db_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(path) as f:
+    meta = json.load(f)
+meta["lastDeployed"] = now
+meta["dbName"] = db_name
+meta["dbId"] = db_id
+with open(path, "w") as f:
+    json.dump(meta, f, indent=2, ensure_ascii=False)
+PY
+else
+  python3 - "$META_FILE" "$PROJECT_NAME" "$NOW" "$DB_NAME" "$DB_ID" <<'PY'
+import json, sys
+path, project, now, db_name, db_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+meta = {
+    "type": "review",
+    "project": project,
+    "source": None,
+    "sourceType": "unknown",
+    "theme": "editorial",
+    "dbName": db_name,
+    "dbId": db_id,
+    "created": now,
+    "lastDeployed": now
+}
+with open(path, "w") as f:
+    json.dump(meta, f, indent=2, ensure_ascii=False)
+PY
+fi
+
+# Save deploy snapshot for --change-password redeploy
+rm -rf "$PERSISTENT_DIR/deploy-snapshot"
+mkdir -p "$PERSISTENT_DIR/deploy-snapshot"
+cp -r . "$PERSISTENT_DIR/deploy-snapshot/"
+
+echo ""
+echo "🔒 Protection: Protected"
+case "$PASSWORD_SOURCE" in
+  generated) echo "🔑 Password (auto-generated): $PASSWORD" ;;
+  arg)       echo "🔑 Password: $PASSWORD" ;;
+esac
 echo "🗄️  D1 Database: $DB_NAME ($DB_ID)"
+echo "📁 Persistent state: $PERSISTENT_DIR"

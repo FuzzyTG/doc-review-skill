@@ -25,25 +25,13 @@
     --rv-confirm-cancel-bg: #f0f0f0;
     --rv-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: var(--rv-font); background: var(--rv-bg); color: var(--rv-ink); }
-  .container { max-width: 720px; margin: 40px auto; padding: 0 20px; }
-  h1 { font-size: 28px; margin-bottom: 8px; color: var(--rv-ink-strong); }
-  .meta { font-size: 14px; color: var(--rv-subtle); margin-bottom: 32px; }
-  .article { background: var(--rv-surface); border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); line-height: 1.8; font-size: 16px; }
-  .article p { margin-bottom: 20px; }
-  .article h2 { font-size: 20px; margin: 28px 0 12px; color: var(--rv-ink-strong); }
+  /* Annotation-only styles — no global resets, no layout overrides */
   .annotation-highlight {
     background: var(--rv-highlight); border-bottom: 2px solid var(--rv-accent); cursor: pointer;
     border-radius: 2px; transition: background 0.2s; position: relative;
   }
   .annotation-highlight:hover { background: var(--rv-highlight-hover); }
-  .annotation-highlight .comment-count {
-    position: absolute; top: -8px; right: -8px;
-    background: var(--rv-accent); color: var(--rv-ink); font-size: 10px; font-weight: 700;
-    width: 16px; height: 16px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; pointer-events: none;
-  }
+
   .add-tooltip {
     position: absolute; display: none; z-index: 100;
     background: var(--rv-ink); color: var(--rv-surface); padding: 6px 14px; border-radius: 6px;
@@ -251,12 +239,12 @@
     } catch(e) { console.error('Load failed', e); }
   }
 
-  async function saveAnnotation(id, text, comment) {
+  async function saveAnnotation(id, text, comment, prefix, suffix) {
     try {
       await fetch(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, text, comment })
+        body: JSON.stringify({ id, text, comment, prefix: prefix || null, suffix: suffix || null })
       });
       await loadAnnotations();
     } catch(e) { console.error('Save failed', e); }
@@ -275,79 +263,173 @@
       el.replaceWith(document.createTextNode(el.textContent));
     });
     article.normalize();
-    annotations.forEach(ann => highlightText(ann.text, ann.id, ann.comments ? ann.comments.length : 0));
+    annotations.forEach(ann => highlightText(ann.text, ann.id, ann.comments ? ann.comments.length : 0, ann.prefix, ann.suffix));
   }
 
-  function highlightText(searchText, annId, commentCount) {
+  // Normalize whitespace: collapse runs of whitespace to single space, trim
+  function normWS(s) { return s.replace(/\s+/g, ' ').trim(); }
+
+  function highlightText(searchText, annId, commentCount, prefix, suffix) {
     const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
     const textNodes = [];
     while (walker.nextNode()) textNodes.push(walker.currentNode);
 
-    // Try single-node match first (fast path)
-    for (const node of textNodes) {
-      const idx = node.textContent.indexOf(searchText);
-      if (idx === -1) continue;
+    const normSearch = normWS(searchText);
+    const fullText = article.textContent;
+
+    // Collect all single-node candidate matches
+    const candidates = [];
+
+    for (let i = 0; i < textNodes.length; i++) {
+      const node = textNodes[i];
+      let startIdx = 0;
+      while (true) {
+        const idx = node.textContent.indexOf(searchText, startIdx);
+        if (idx === -1) break;
+        candidates.push({ type: 'single', node, idx, len: searchText.length });
+        startIdx = idx + 1;
+      }
+    }
+
+    // If no single-node matches, try cross-node
+    if (candidates.length === 0) {
+      // Build concatenated text with offset mapping
+      let concat = '';
+      const map = [];
+      for (const node of textNodes) {
+        const start = concat.length;
+        concat += node.textContent;
+        map.push({ node, start, end: concat.length });
+      }
+
+      // Try exact match first, then normalized
+      let searchIdx = -1;
+      let searchEnd = -1;
+      let startPos = 0;
+      // Collect all cross-node exact matches
+      while (true) {
+        const idx = concat.indexOf(searchText, startPos);
+        if (idx === -1) break;
+        candidates.push({ type: 'cross', map, searchIdx: idx, searchEnd: idx + searchText.length, concat });
+        startPos = idx + 1;
+      }
+
+      if (candidates.length === 0) {
+        // Normalized matching
+        const rawToNorm = [];
+        const normToRaw = [];
+        let normStr = '';
+        let lastWasSpace = true;
+        for (let i = 0; i < concat.length; i++) {
+          const ch = concat[i];
+          if (/\s/.test(ch)) {
+            if (!lastWasSpace) {
+              rawToNorm.push(normStr.length);
+              normToRaw.push(i);
+              normStr += ' ';
+            } else {
+              rawToNorm.push(normStr.length);
+            }
+            lastWasSpace = true;
+          } else {
+            rawToNorm.push(normStr.length);
+            normToRaw.push(i);
+            normStr += ch;
+            lastWasSpace = false;
+          }
+        }
+        if (normStr.endsWith(' ')) normStr = normStr.slice(0, -1);
+
+        startPos = 0;
+        while (true) {
+          const normIdx = normStr.indexOf(normSearch, startPos);
+          if (normIdx === -1) break;
+          const normEnd = normIdx + normSearch.length;
+          const rawStart = normToRaw[normIdx];
+          const rawEnd = normEnd < normToRaw.length ? normToRaw[normEnd] : concat.length;
+          candidates.push({ type: 'cross', map, searchIdx: rawStart, searchEnd: rawEnd, concat });
+          startPos = normIdx + 1;
+        }
+      }
+    }
+
+    if (candidates.length === 0) return;
+
+    // Pick best candidate using prefix/suffix if available
+    let best = candidates[0];
+    if (candidates.length > 1 && (prefix || suffix)) {
+      let bestScore = -1;
+      for (const c of candidates) {
+        // Get the position in fullText for this candidate
+        let posInFull;
+        if (c.type === 'single') {
+          // Calculate position of this node in fullText
+          const preRange = document.createRange();
+          preRange.setStart(article, 0);
+          preRange.setEnd(c.node, c.idx);
+          posInFull = preRange.toString().length;
+        } else {
+          posInFull = c.searchIdx;
+          // For cross-node, concat may differ from fullText slightly, but close enough
+        }
+        let score = 0;
+        if (prefix) {
+          const actualPrefix = fullText.slice(Math.max(0, posInFull - prefix.length), posInFull);
+          // Count matching chars from end
+          for (let i = 0; i < Math.min(prefix.length, actualPrefix.length); i++) {
+            if (prefix[prefix.length - 1 - i] === actualPrefix[actualPrefix.length - 1 - i]) score++;
+          }
+        }
+        if (suffix) {
+          const matchEnd = posInFull + searchText.length;
+          const actualSuffix = fullText.slice(matchEnd, matchEnd + suffix.length);
+          for (let i = 0; i < Math.min(suffix.length, actualSuffix.length); i++) {
+            if (suffix[i] === actualSuffix[i]) score++;
+          }
+        }
+        if (score > bestScore) { bestScore = score; best = c; }
+      }
+    }
+
+    // Apply the highlight for the best candidate
+    if (best.type === 'single') {
       const range = document.createRange();
-      range.setStart(node, idx);
-      range.setEnd(node, idx + searchText.length);
+      range.setStart(best.node, best.idx);
+      range.setEnd(best.node, best.idx + best.len);
       const span = document.createElement('span');
       span.className = 'annotation-highlight';
       span.dataset.annId = annId;
-      if (commentCount > 0) {
-        const b = document.createElement('span');
-        b.className = 'comment-count';
-        b.textContent = commentCount;
-        span.appendChild(b);
-      }
       range.surroundContents(span);
-      return;
-    }
-
-    // Cross-node match: concatenate text nodes and find span across them
-    let concat = '';
-    const map = [];
-    for (const node of textNodes) {
-      const start = concat.length;
-      concat += node.textContent;
-      map.push({ node, start, end: concat.length });
-    }
-    const searchIdx = concat.indexOf(searchText);
-    if (searchIdx === -1) return;
-    const searchEnd = searchIdx + searchText.length;
-
-    let startNode, startOffset, endNode, endOffset;
-    for (const m of map) {
-      if (!startNode && m.end > searchIdx) {
-        startNode = m.node;
-        startOffset = searchIdx - m.start;
+    } else {
+      // Cross-node match
+      const map = best.map;
+      let startNode, startOffset, endNode, endOffset;
+      for (const m of map) {
+        if (!startNode && m.end > best.searchIdx) {
+          startNode = m.node;
+          startOffset = best.searchIdx - m.start;
+        }
+        if (m.end >= best.searchEnd) {
+          endNode = m.node;
+          endOffset = best.searchEnd - m.start;
+          break;
+        }
       }
-      if (m.end >= searchEnd) {
-        endNode = m.node;
-        endOffset = searchEnd - m.start;
-        break;
+      if (!startNode || !endNode) return;
+
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      const span = document.createElement('span');
+      span.className = 'annotation-highlight';
+      span.dataset.annId = annId;
+      try {
+        range.surroundContents(span);
+      } catch (_) {
+        const frag = range.extractContents();
+        span.appendChild(frag);
+        range.insertNode(span);
       }
-    }
-    if (!startNode || !endNode) return;
-
-    const range = document.createRange();
-    range.setStart(startNode, startOffset);
-    range.setEnd(endNode, endOffset);
-
-    const span = document.createElement('span');
-    span.className = 'annotation-highlight';
-    span.dataset.annId = annId;
-    if (commentCount > 0) {
-      const b = document.createElement('span');
-      b.className = 'comment-count';
-      b.textContent = commentCount;
-      span.appendChild(b);
-    }
-    try {
-      range.surroundContents(span);
-    } catch (_) {
-      const frag = range.extractContents();
-      span.appendChild(frag);
-      range.insertNode(span);
     }
   }
 
@@ -358,11 +440,27 @@
     }
     const text = sel.toString().trim();
     if (!text || text.length < 2) { tooltip.style.display = 'none'; return; }
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
     tooltip.style.left = (rect.left + rect.width / 2) + 'px';
     tooltip.style.top = (rect.top - 40 + window.scrollY) + 'px';
     tooltip.style.display = 'block';
-    pendingSelection = { text };
+    // Extract prefix/suffix context for W3C TextQuoteSelector positioning
+    const CTX_LEN = 30;
+    let prefix = '', suffix = '';
+    try {
+      const container = article;
+      const fullText = container.textContent;
+      // Find the range's text position in the article
+      const preRange = document.createRange();
+      preRange.setStart(container, 0);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      const preText = preRange.toString();
+      prefix = preText.slice(-CTX_LEN);
+      const postStart = preText.length + text.length;
+      suffix = fullText.slice(postStart, postStart + CTX_LEN);
+    } catch(e) { /* fallback: no prefix/suffix */ }
+    pendingSelection = { text, prefix, suffix };
   });
 
   tooltip.addEventListener('click', () => {
@@ -372,9 +470,9 @@
     if (existing) {
       openPanel(existing.id);
     } else {
-      const ann = { id: genId(), text: pendingSelection.text, comments: [] };
+      const ann = { id: genId(), text: pendingSelection.text, prefix: pendingSelection.prefix, suffix: pendingSelection.suffix, comments: [] };
       annotations.push(ann);
-      saveAnnotation(ann.id, ann.text, null);
+      saveAnnotation(ann.id, ann.text, null, ann.prefix, ann.suffix);
       openPanel(ann.id);
     }
     window.getSelection().removeAllRanges();
@@ -530,7 +628,7 @@
     try {
       const ann = annotations.find(a => a.id === currentAnnotationId);
       if (!ann) return;
-      await saveAnnotation(ann.id, ann.text, { author, text });
+      await saveAnnotation(ann.id, ann.text, { author, text }, ann.prefix, ann.suffix);
       commentInput.value = '';
       const updated = annotations.find(a => a.id === currentAnnotationId);
       if (updated) renderComments(updated);

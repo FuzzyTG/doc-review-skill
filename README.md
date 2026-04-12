@@ -4,11 +4,13 @@ An [OpenClaw](https://github.com/openclaw/openclaw) agent skill that deploys pas
 
 ## Features
 
-- 📝 **Inline Annotations** — Reviewers select any text to add comments
+- 📝 **Inline Annotations** — Reviewers select any text to add comments (W3C TextQuoteSelector for precise positioning)
 - 💬 **Persistent Comments** — Stored in Cloudflare D1 (serverless SQLite)
-- 🔒 **Password Protected** — Every page requires a password (auto-generated if not specified)
+- 🔒 **Password Protected** — Every page requires a password via Cloudflare Secrets (auto-generated if not specified)
 - 🎨 **4 Themes** — editorial, magazine, swiss, refined
 - 🔄 **Iterative** — Re-deploy after addressing feedback; old annotations auto-disappear
+- 🗄️ **Auto D1 Creation** — Each project gets a dedicated D1 database automatically
+- 🔑 **Change Password** — Update password without redeploying content
 
 ## Prerequisites
 
@@ -49,15 +51,32 @@ Once installed, tell your OpenClaw agent:
 > "Create a review page for this report"
 > "发布这个文档收集批注"
 
-The agent will generate themed HTML, inject the annotation system, and deploy to Cloudflare Pages.
+### Deploy
 
-## Password Protection
+```bash
+# Basic deploy (password auto-generated)
+bash scripts/deploy.sh my-report-review /path/to/html-dir
 
-Every review page requires a password. This provides **basic spam prevention only** — it is not a secure authentication system. Anyone with the password can access and annotate the page, making it easy to share with multiple reviewers.
+# With specific password
+bash scripts/deploy.sh my-report-review /path/to/html-dir --password mypassword
+```
 
-- **Not for sensitive data** — the password is a simple shared secret, not per-user authentication
-- **Cookie-based session** — after entering the password, a cookie is set that expires after **24 hours**; reviewers will need to re-enter the password after that
-- If no password is specified at deploy time, one is auto-generated (speakable format like `maple-river-velvet-64`)
+**Note:** Project name must end with `-review`. The D1 database is created automatically — no need to specify database name or ID.
+
+### Change Password
+
+```bash
+bash scripts/deploy.sh my-report-review --change-password newpassword
+```
+
+This updates the Cloudflare Secret and redeploys from the saved snapshot.
+
+### How Passwords Work
+
+Passwords are stored as **Cloudflare Secrets** (`PAGE_PASSWORD` and `PAGE_SECRET`), never in source code or config files. The middleware reads secrets from the environment at runtime.
+
+- `PAGE_PASSWORD` — the plaintext password reviewers enter
+- `PAGE_SECRET` — a derived hash used for cookie signing: `cloudflare-pages-auth-$(echo -n 'yourpassword' | sha256sum | cut -d' ' -f1)`
 
 ## Themes
 
@@ -107,7 +126,8 @@ The key value: **your OpenClaw agent closes the feedback loop automatically.** R
 │       ├── swiss.css
 │       └── refined.css
 └── scripts/
-    └── deploy.sh                     # Deployment script
+    ├── deploy.sh                     # Deployment script
+    └── inject-annotations.sh         # HTML injection helper
 ```
 
 ## License
