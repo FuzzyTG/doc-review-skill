@@ -255,12 +255,11 @@ li::marker { color: var(--red); font-weight: 600; }
 
 .reasoning-chain ol li {
   counter-increment: chain;
-  display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 0;
+  display: block;
   margin-bottom: 0;
-  padding: 0.8rem 0;
+  padding: 0.8rem 0 0.8rem 40px;
   border-bottom: 1px solid var(--gray-2);
+  position: relative;
 }
 
 .reasoning-chain ol li:last-child { border-bottom: none; }
@@ -270,7 +269,9 @@ li::marker { color: var(--red); font-weight: 600; }
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--red);
-  padding-top: 0.15rem;
+  position: absolute;
+  left: 0;
+  top: 0.95rem;
 }
 
 /* ── Action Items ── */
