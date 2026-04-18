@@ -40,7 +40,7 @@ Deploy articles/documents to Cloudflare Pages with inline text annotation suppor
    ```bash
    python3 -c "
    import json
-   meta_path = '$HOME/published-content/<project-name>/meta.json'
+   meta_path = '$HOME/.openclaw/published-content/<project-name>/meta.json'
    with open(meta_path) as f: meta = json.load(f)
    meta['source'] = '<源文件路径，如 /path/to/your/source/file.md>'
    meta['sourceType'] = '<markdown|pdf|text|generated>'
