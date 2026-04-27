@@ -24,7 +24,13 @@ Deploy articles/documents to Cloudflare Pages with inline text annotation suppor
 
 ### 1. Deploy for Review (首次发布)
 
-1. 确定源文件，生成纯语义 HTML content（see HTML Content Rules below）→ save as `content.html`
+1. 确定源文件，用 md2html 脚本生成基线 HTML，然后按 HTML Content Rules 做组件增强 → save as `content.html`
+   ```bash
+   # Step 1a: 脚本生成基线（确定性 1:1 映射）
+   bash scripts/md2html.sh <source.md> /tmp/<project-name>/baseline.html
+   # Step 1b: Agent 读取 baseline.html，按 HTML Content Rules 做组件增强，输出 content.html
+   # ⚠️ 只能添加组件包装，不能替换基础 HTML 结构（见 HTML Content Rules）
+   ```
 2. Run render.js to wrap with theme → produces `index.html`:
    ```bash
    node references/render.js \
@@ -91,7 +97,7 @@ When user requests changes based on review feedback:
 1. Read `$HOME/.openclaw/published-content/<project-name>/meta.json` — 获取 source 路径和 sourceType
 2. Read D1 feedback（同 Section 2）
 3. **根据 sourceType 决定如何更新**:
-   - `markdown`/`text`: 从 `source` 路径重新读取源文件 → 重新生成 content.html
+   - `markdown`/`text`: 从 `source` 路径重新读取源文件 → 用 `md2html.sh` 重新生成基线 → 按 HTML Content Rules 做组件增强 → content.html
    - `pdf`: 源文件还在就重新提取，不在就用 `$HOME/.openclaw/published-content/<project-name>/content.html`
    - `generated`: 用 `$HOME/.openclaw/published-content/<project-name>/content.html` 作为基础修改
 4. Render with same theme → `index.html`
@@ -169,7 +175,28 @@ print(f'export CLOUDFLARE_API_TOKEN={c[\"api_token\"]}')
 
 ## HTML Content Rules
 
-When generating HTML content for review pages, follow these rules strictly:
+When generating HTML content for review pages, follow these rules strictly.
+
+### ⚠️ 最高优先级：源文件结构 1:1 映射
+
+**这条规则优先于所有其他规则。**
+
+源文件的 Markdown 结构必须 1:1 映射到 HTML 基础标签。用 `md2html.sh` 脚本生成基线，agent 只在基线上做组件增强，**不能替换基础 HTML 结构**。
+
+| Markdown | HTML | 备注 |
+|----------|------|------|
+| `# H1` | `<h1>` | 直接映射 |
+| `## H2` | `<h2>` | 直接映射 |
+| `### H3` | `<h3>` | 直接映射 |
+| `- item` | `<ul><li>` | **不升级为组件** |
+| `1. item` | `<ol><li>` | **不升级为组件** |
+| `> quote` | `<blockquote>` | **不升级为 callout** |
+| `**bold**` | `<strong>` | |
+| `---` | `<hr>` | |
+| 普通段落 | `<p>` | |
+| 表格 | `<table>` | |
+
+**铁律**：脚本输出即为基线。Agent 只能在基线上**添加**组件包装（在现有结构外层包一个 `<div>`），不能**替换**基础 HTML 标签。
 
 ### Semantic HTML Only
 - Output **pure semantic HTML** — no `<style>` tags, no inline styles, no `<html>`/`<head>`/`<body>` wrappers
@@ -188,9 +215,9 @@ When generating HTML content for review pages, follow these rules strictly:
 - `<span class="badge badge-yellow">Warning</span>` — caution
 - `<span class="badge badge-red">Miss</span>` — negative
 
-### Component Library (重要 — 必须使用)
+### Component Library（语义匹配，不强制使用）
 
-生成 content.html 时，**必须积极使用以下组件**让内容有视觉层次。纯 `<p>` + `<ul>` 的平铺 HTML 是不合格的。
+组件是**可选增强**，只在内容语义确实匹配时使用。**模糊时默认降级**：不确定该不该用组件，就用基础 HTML 标签。
 
 #### Callout Boxes — 突出关键信息
 ```html
@@ -199,6 +226,8 @@ When generating HTML content for review pages, follow these rules strictly:
 <div class="callout callout-warning"><strong>注意：</strong>风险、隐忧、需关注的问题</div>
 <div class="callout callout-important"><strong>重要：</strong>关键数据、不可忽视的事实</div>
 ```
+- ✅ 正例：文章的核心结论、关键数据成果（如 "17K WAU at 161% of target"）、不可忽视的风险警告
+- ❌ 反例：普通段落里的重点、每段话的小结、一般性描述
 
 #### Path Cards — 选项/路径对比
 ```html
@@ -211,6 +240,8 @@ When generating HTML content for review pages, follow these rules strictly:
   <p>描述内容...</p>
 </div>
 ```
+- ✅ 正例：两个互斥方案需要决策（"保守方案 vs 激进方案"）
+- ❌ 反例：三个独立要点恰好并列、普通 bullet list 内容
 
 #### Reasoning Chain — 逻辑推理链
 ```html
@@ -222,6 +253,8 @@ When generating HTML content for review pages, follow these rules strictly:
   </ol>
 </div>
 ```
+- ✅ 正例：明确的因果推理链（A→B→C→结论）
+- ❌ 反例：普通有序步骤、操作流程、并列要点
 
 #### Action Items — 行动建议
 ```html
@@ -232,6 +265,8 @@ When generating HTML content for review pages, follow these rules strictly:
   </ol>
 </div>
 ```
+- ✅ 正例：文档明确列出的行动建议/下一步计划
+- ❌ 反例：一般性描述恰好用了有序列表
 
 #### Final Recommendation — 最终建议（深色块）
 ```html
@@ -239,6 +274,8 @@ When generating HTML content for review pages, follow these rules strictly:
   <p><strong>最终建议：</strong>一句话核心结论，放在文末作为收尾。</p>
 </div>
 ```
+- ✅ 正例：文末确实有明确的总结性建议
+- ❌ 反例：文章没有建议性质，不硬加
 
 #### Keywords — 标签
 ```html
@@ -258,14 +295,13 @@ When generating HTML content for review pages, follow these rules strictly:
 <p class="disclaimer">本报告由 AI 生成，仅供参考，不构成专业建议。</p>
 ```
 
-### 内容质量标准
+### 组件使用判断原则
 
-生成 content.html 时必须做到：
-1. **每个 h2 section 至少包含 1 个组件**（callout / path-card / table / reasoning-chain 等）
-2. **关键结论必须用 callout-conclusion**，不要藏在普通段落里
-3. **有对比就用 path-card 或 table**，不要用纯文字罗列
-4. **文末必须有 final-rec**（如果内容有明确结论/建议）
-5. **TOC 必须用 `<div class="toc">`** 包裹，不要用裸 `<ul>`
+组件是为了帮助读者理解内容的**语义结构**，不是为了让页面看起来花哨。判断顺序：
+
+1. 基础 HTML 能清晰表达吗？→ 能就不用组件
+2. 内容语义确实匹配某个组件定义吗？→ 匹配才用
+3. 不确定？→ **默认降级，用基础 HTML**
 
 ### Available Themes
 - `editorial` — long-form analysis style (serif body + sans headings, warm gray background, deep blue-gray accents, 740px narrow column). Best for deep analysis, research reports. Features: callout boxes, path cards, reasoning chains, action items.

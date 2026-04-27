@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.0.0
+
+### Breaking Changes
+
+- **New `md2html.sh` baseline step**: Workflow now requires running `scripts/md2html.sh` to generate a deterministic HTML baseline before agent enhancement. Agent can no longer write `content.html` from scratch.
+- **HTML Content Rules rewritten**: Components are now optional enhancements (semantic match only), not mandatory. Old quantity mandates removed.
+
+### Added
+
+- `scripts/md2html.sh` — deterministic Markdown→HTML conversion using `marked` (GFM mode)
+- Highest-priority rule: source file structure maps 1:1 to HTML tags
+- Positive/negative examples for each component (callout, path-card, reasoning-chain, action-items, final-rec)
+- "Default downgrade on ambiguity" rule: when uncertain, use basic HTML tags
+- Component judgment principle: 3-step decision flow
+
+### Removed
+
+- "每个 h2 section 至少包含 1 个组件" mandate
+- "纯 p+ul 的平铺 HTML 是不合格的" quality gate
+- "必须积极使用以下组件" directive
+
 ## v2.0.0
 
 ### Breaking Changes
