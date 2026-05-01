@@ -34,13 +34,18 @@
 
   .add-tooltip {
     position: absolute; display: none; z-index: 100;
-    background: var(--rv-ink); color: var(--rv-surface); padding: 6px 14px; border-radius: 6px;
-    font-size: 13px; cursor: pointer; white-space: nowrap;
+    background: var(--rv-ink); color: var(--rv-surface); padding: 10px 16px; border-radius: 6px;
+    font-size: 14px; cursor: pointer; white-space: nowrap; min-height: 36px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2); transform: translateX(-50%); user-select: none;
+    -webkit-user-select: none; touch-action: manipulation;
   }
   .add-tooltip::after {
     content: ''; position: absolute; top: 100%; left: 50%;
     transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--rv-ink);
+  }
+  .add-tooltip.below::after {
+    top: auto; bottom: 100%;
+    border-top-color: transparent; border-bottom-color: var(--rv-ink);
   }
   .comment-panel {
     position: fixed; right: -400px; top: 0; width: 380px; height: 100vh;
@@ -433,17 +438,37 @@
     }
   }
 
-  document.addEventListener('mouseup', (e) => {
+  function handleSelection() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) {
-      tooltip.style.display = 'none'; return;
+      tooltip.style.display = 'none';
+      pendingSelection = null;
+      return;
     }
     const text = sel.toString().trim();
-    if (!text || text.length < 2) { tooltip.style.display = 'none'; return; }
+    if (!text || text.length < 2) {
+      tooltip.style.display = 'none';
+      pendingSelection = null;
+      return;
+    }
     const range = sel.getRangeAt(0);
+    // Only handle selections inside the article (avoid panel/UI selections)
+    if (!article.contains(range.commonAncestorContainer)) {
+      tooltip.style.display = 'none';
+      return;
+    }
     const rect = range.getBoundingClientRect();
-    tooltip.style.left = (rect.left + rect.width / 2) + 'px';
-    tooltip.style.top = (rect.top - 40 + window.scrollY) + 'px';
+    // On touch devices the system selection menu sits above the selection,
+    // so place the tooltip below to avoid being covered.
+    const isTouch = matchMedia('(pointer: coarse)').matches;
+    if (isTouch) {
+      tooltip.classList.add('below');
+      tooltip.style.top = (rect.bottom + 8 + window.scrollY) + 'px';
+    } else {
+      tooltip.classList.remove('below');
+      tooltip.style.top = (rect.top - 40 + window.scrollY) + 'px';
+    }
+    tooltip.style.left = (rect.left + rect.width / 2 + window.scrollX) + 'px';
     tooltip.style.display = 'block';
     // Extract prefix/suffix context for W3C TextQuoteSelector positioning
     const CTX_LEN = 30;
@@ -461,9 +486,29 @@
       suffix = fullText.slice(postStart, postStart + CTX_LEN);
     } catch(e) { /* fallback: no prefix/suffix */ }
     pendingSelection = { text, prefix, suffix };
+  }
+
+  // Desktop: mouseup fires immediately when user releases the mouse
+  document.addEventListener('mouseup', handleSelection);
+
+  // Mobile: mouseup never fires. Use selectionchange (debounced) so the tooltip
+  // appears after the user adjusts the selection handles and lifts their finger.
+  let selectionTimer = null;
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(handleSelection, 250);
   });
 
-  tooltip.addEventListener('click', () => {
+  // Touch fallback: handle right after finger lifts (covers cases where
+  // selectionchange is throttled on some mobile browsers)
+  document.addEventListener('touchend', () => {
+    setTimeout(handleSelection, 50);
+  }, { passive: true });
+
+  // Use pointerdown + preventDefault so a mobile tap doesn't dismiss the
+  // selection (and pendingSelection) before our handler runs.
+  tooltip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     if (!pendingSelection) return;
     tooltip.style.display = 'none';
     const existing = annotations.find(a => a.text === pendingSelection.text);
