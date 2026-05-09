@@ -10,13 +10,14 @@ An agent skill for Claude Code, Codex, OpenClaw, and similar coding-agent enviro
 - **4 Themes** — editorial, magazine, swiss, refined
 - **Iterative** — Re-deploy after addressing feedback; old annotations auto-disappear
 - **Auto D1 Creation** — Each project gets a dedicated D1 database automatically
-- **Change Password** — Update password without redeploying content
+- **Change Password** — Update password with automatic redeploy from saved snapshot
 
 ## Prerequisites
 
 - **macOS or Linux** (scripts require bash; Windows users need WSL)
 - Cloudflare account with API token (needs **D1 Edit** permission)
 - Node.js (for `npx wrangler`)
+- python3, jq, curl
 - Any AI agent with shell access (Claude Code, Codex, OpenClaw, Cursor, etc.)
 
 ## Installation
@@ -73,14 +74,15 @@ Once installed, the skill is triggered by:
 Cloudflare credentials are resolved in this order (first match wins):
 
 1. **Environment variables** (simplest): `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`
-2. **`~/.doc-review/credentials/cloudflare.json`**:
+2. **`CF_CREDS` env var**: path to a custom credentials JSON file
+3. **`~/.doc-review/credentials/cloudflare.json`**:
    ```json
    {
      "account_id": "your-account-id",
      "api_token": "your-api-token"
    }
    ```
-3. **`~/.openclaw/credentials/cloudflare.json`** (backward compat for OpenClaw users)
+4. **`~/.openclaw/credentials/cloudflare.json`** (backward compat for OpenClaw users)
 
 ## Usage
 
@@ -108,7 +110,7 @@ bash scripts/deploy.sh my-report-review /path/to/html-dir --password mypassword
 bash scripts/deploy.sh my-report-review --change-password newpassword
 ```
 
-This updates the Cloudflare Secret and redeploys from the saved snapshot.
+This updates both Cloudflare Secrets (PAGE_PASSWORD and PAGE_SECRET) and redeploys from the saved snapshot.
 
 ### How Passwords Work
 
@@ -141,12 +143,13 @@ Cream background with parchment texture, Cormorant Garamond, gold + sage accents
 
 ## How It Works
 
-1. Tell your agent to deploy a document for review
-2. Agent generates themed HTML, injects the annotation system, and deploys to Cloudflare Pages
-3. Share the URL + password with reviewers
-4. **Reviewers select any text and leave inline comments** — no login required, comments persist in Cloudflare D1
-5. **Ask your agent to check feedback** — it queries D1 directly, reads all annotations and comments, then iterates on the document based on reviewer input
-6. Redeploy the updated version — old annotations on changed text auto-disappear
+1. **Agent generates content** — converts your source document (Markdown, text, PDF) to semantic HTML via `md2html.sh`, then enhances with optional components
+2. **Agent renders with theme** — `render.js` wraps the content HTML with one of 4 themes, producing a styled `index.html`
+3. **`deploy.sh` handles the rest** — injects the annotation UI, creates a D1 database, sets password secrets, and deploys to Cloudflare Pages
+4. **Share the URL + password** with reviewers
+5. **Reviewers select any text and leave inline comments** — no login required, comments persist in Cloudflare D1
+6. **Ask your agent to check feedback** — it queries D1 directly, reads all annotations and comments, then iterates on the document based on reviewer input
+7. **Redeploy** the updated version — old annotations on changed text auto-disappear
 
 The key value: **your agent closes the feedback loop automatically.** Reviewers comment → agent reads → agent revises → redeploy. No manual copy-pasting of feedback.
 

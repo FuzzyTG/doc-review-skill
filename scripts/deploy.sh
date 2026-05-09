@@ -36,7 +36,9 @@ if [[ "${2:-}" == "--change-password" ]]; then
   META_FILE="$PERSISTENT_DIR/meta.json"
   SNAPSHOT_DIR="$PERSISTENT_DIR/deploy-snapshot"
   echo "🔑 Changing password for $PROJECT_NAME..."
+  NEW_SECRET="cloudflare-pages-auth-$(printf '%s' "$NEW_PW" | sha256sum | cut -d' ' -f1)"
   printf '%s' "$NEW_PW" | npx wrangler pages secret put PAGE_PASSWORD --project-name="$PROJECT_NAME"
+  printf '%s' "$NEW_SECRET" | npx wrangler pages secret put PAGE_SECRET --project-name="$PROJECT_NAME"
   # Redeploy from snapshot (secrets require redeploy to take effect)
   if [[ -d "$SNAPSHOT_DIR" ]]; then
     cd "$SNAPSHOT_DIR"
