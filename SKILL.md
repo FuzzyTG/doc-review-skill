@@ -43,15 +43,18 @@ If no credentials are found, the agent should guide the user:
 3. **持久化目录**: `$HOME/.doc-review/published-content/<project-name>/` — 存放 meta.json、content.html、index.html（向后兼容 `$HOME/.openclaw/published-content/`）
 4. **content.html 是构建产物** — redeploy 时从源文件重新生成，不要直接改 content.html
 
-## Internal Scripts — Do Not Call Directly
+## Internal Files — Do Not Use Directly
 
-The following scripts are internal to the workflow. They are called automatically by `deploy.sh` or by specific workflow steps. **Do not run them outside of these contexts.**
+The following files are internal to `deploy.sh`. They are injected, copied, or executed automatically during deployment. **Do not run these scripts, read these files, or incorporate their contents into HTML manually.**
 
-| Script | Called by | Purpose |
-|--------|----------|---------|
+| File | Handled by | Purpose |
+|------|-----------|---------|
 | `scripts/inject-annotations.sh` | `deploy.sh` (automatically) | Injects annotation UI into index.html |
+| `references/annotate-template.html` | `deploy.sh` via `inject-annotations.sh` | Annotation UI (CSS + HTML + JS) — **never read or copy into content** |
 | `references/annotations-api.js` | `deploy.sh` (copied to deploy dir) | D1 API for annotations |
 | `references/middleware-template.js` | `deploy.sh` (copied to deploy dir) | Password protection middleware |
+
+**The agent's job is to produce `content.html` (semantic HTML only) and `index.html` (via render.js). All annotation, middleware, and API injection is handled by `deploy.sh`. Do not add annotation functionality to the HTML yourself.**
 
 ## Workflow
 
