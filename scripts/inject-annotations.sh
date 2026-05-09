@@ -20,10 +20,19 @@ with open(template_path) as f:
 with open(index_path) as f:
     html = f.read()
 
-# Idempotency: skip if already injected
-if 'id="addTooltip"' in html and 'id="commentPanel"' in html:
-    print("ℹ️  Annotations already present — skipping injection")
-    sys.exit(0)
+# Idempotency: strip any existing annotation elements before injecting
+# This handles all duplication scenarios: agent pasting template content,
+# script running twice, or any other source of duplicate annotation UI.
+if 'id="addTooltip"' in html:
+    print("ℹ️  Existing annotations detected — stripping before re-injection")
+    # Remove annotation CSS block (identified by .annotation-highlight)
+    html = re.sub(r'<style>\s*/\*\s*──\s*Review UI Variables.*?</style>\s*', '', html, flags=re.DOTALL)
+    # Remove annotation HTML elements (from addTooltip through commentPanel closing div)
+    html = re.sub(r'<div class="add-tooltip".*?</div>\s*<div class="sidebar-badge".*?</div>\s*<div class="overlay".*?</div>\s*<div class="comment-panel".*?</div>\s*</div>', '', html, flags=re.DOTALL)
+    # Remove annotation script block (IIFE starting with const API = '/api/annotations')
+    html = re.sub(r"<script>\s*\(function\(\)\s*\{\s*const API = '/api/annotations'.*?</script>", '', html, flags=re.DOTALL)
+    # Remove hint paragraph
+    html = re.sub(r'<p class="hint" id="hintText">.*?</p>', '', html, flags=re.DOTALL)
 
 # 1. Extract <style>...</style>
 style_m = re.search(r'(<style>.*?</style>)', tpl, re.DOTALL)
