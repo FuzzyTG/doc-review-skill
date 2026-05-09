@@ -12,6 +12,40 @@ An agent skill for Claude Code, Codex, OpenClaw, and similar coding-agent enviro
 - **Auto D1 Creation** — Each project gets a dedicated D1 database automatically
 - **Change Password** — Update password with automatic redeploy from saved snapshot
 
+## How It Works
+
+1. **Agent generates content** — converts your source document (Markdown, text, PDF) to semantic HTML via `md2html.sh`, then enhances with optional components
+2. **Agent renders with theme** — `render.js` wraps the content HTML with one of 4 themes, producing a styled `index.html`
+3. **`deploy.sh` handles the rest** — injects the annotation UI, creates a D1 database, sets password secrets, and deploys to Cloudflare Pages
+4. **Share the URL + password** with reviewers
+5. **Reviewers select any text and leave inline comments** — no login required, comments persist in Cloudflare D1
+6. **Ask your agent to check feedback** — it queries D1 directly, reads all annotations and comments, then iterates on the document based on reviewer input
+7. **Redeploy** the updated version — old annotations on changed text auto-disappear
+
+The key value: **your agent closes the feedback loop automatically.** Reviewers comment → agent reads → agent revises → redeploy. No manual copy-pasting of feedback.
+
+## Themes
+
+### Editorial — Long-form analysis (default)
+Warm gray, serif body, 740px narrow column. Best for deep analysis, research reports.
+
+![Editorial theme](screenshots/editorial.png)
+
+### Magazine — Dramatic editorial
+Dark hero header, Playfair Display headings, red accent, section numbering. Best for high-impact reports.
+
+![Magazine theme](screenshots/magazine.png)
+
+### Swiss — International style
+Pure white, IBM Plex Mono, black+red+blue grid layout, 900px. Best for technical specs, engineering docs.
+
+![Swiss theme](screenshots/swiss.png)
+
+### Refined — Premium feel
+Cream background with parchment texture, Cormorant Garamond, gold + sage accents, 700px centered. Best for executive briefs.
+
+![Refined theme](screenshots/refined.png)
+
 ## Prerequisites
 
 - **macOS or Linux** (scripts require bash; Windows users need WSL)
@@ -102,7 +136,7 @@ bash scripts/deploy.sh my-report-review /path/to/html-dir
 bash scripts/deploy.sh my-report-review /path/to/html-dir --password mypassword
 ```
 
-**Note:** Project name must end with `-review`. The D1 database is created automatically — no need to specify database name or ID.
+**Note:** Project name must end with `-review`. The D1 database (`review-<project-name>`) is created automatically — no need to specify database name or ID.
 
 ### Change Password
 
@@ -117,41 +151,7 @@ This updates both Cloudflare Secrets (PAGE_PASSWORD and PAGE_SECRET) and redeplo
 Passwords are stored as **Cloudflare Secrets** (`PAGE_PASSWORD` and `PAGE_SECRET`), never in source code or config files. The middleware reads secrets from the environment at runtime.
 
 - `PAGE_PASSWORD` — the plaintext password reviewers enter
-- `PAGE_SECRET` — a derived hash used for cookie signing: `cloudflare-pages-auth-$(echo -n 'yourpassword' | sha256sum | cut -d' ' -f1)`
-
-## Themes
-
-### Editorial — Long-form analysis (default)
-Warm gray, serif body, 740px narrow column. Best for deep analysis, research reports.
-
-![Editorial theme](screenshots/editorial.png)
-
-### Magazine — Dramatic editorial
-Dark hero header, Playfair Display headings, red accent, section numbering. Best for high-impact reports.
-
-![Magazine theme](screenshots/magazine.png)
-
-### Swiss — International style
-Pure white, IBM Plex Mono, black+red+blue grid layout, 900px. Best for technical specs, engineering docs.
-
-![Swiss theme](screenshots/swiss.png)
-
-### Refined — Premium feel
-Cream background with parchment texture, Cormorant Garamond, gold + sage accents, 700px centered. Best for executive briefs.
-
-![Refined theme](screenshots/refined.png)
-
-## How It Works
-
-1. **Agent generates content** — converts your source document (Markdown, text, PDF) to semantic HTML via `md2html.sh`, then enhances with optional components
-2. **Agent renders with theme** — `render.js` wraps the content HTML with one of 4 themes, producing a styled `index.html`
-3. **`deploy.sh` handles the rest** — injects the annotation UI, creates a D1 database, sets password secrets, and deploys to Cloudflare Pages
-4. **Share the URL + password** with reviewers
-5. **Reviewers select any text and leave inline comments** — no login required, comments persist in Cloudflare D1
-6. **Ask your agent to check feedback** — it queries D1 directly, reads all annotations and comments, then iterates on the document based on reviewer input
-7. **Redeploy** the updated version — old annotations on changed text auto-disappear
-
-The key value: **your agent closes the feedback loop automatically.** Reviewers comment → agent reads → agent revises → redeploy. No manual copy-pasting of feedback.
+- `PAGE_SECRET` — a derived hash used for cookie signing: `cloudflare-pages-auth-$(printf '%s' 'yourpassword' | sha256sum | cut -d' ' -f1)`
 
 ## Migration from v3
 
@@ -174,6 +174,7 @@ The migration script:
 
 ```
 ├── SKILL.md                          # Agent instructions
+├── CHANGELOG.md                      # Version history
 ├── references/
 │   ├── render.js                     # Theme renderer
 │   ├── annotate-template.html        # Annotation UI (JS + CSS)
@@ -184,9 +185,10 @@ The migration script:
 │       ├── magazine.css
 │       ├── swiss.css
 │       └── refined.css
+├── screenshots/                      # Theme preview images
 └── scripts/
     ├── deploy.sh                     # Deployment script
-    ├── inject-annotations.sh         # HTML injection helper
+    ├── inject-annotations.sh         # HTML injection (called by deploy.sh)
     ├── md2html.sh                    # Markdown to HTML baseline
     └── migrate.sh                    # v3 → v4 migration
 ```
