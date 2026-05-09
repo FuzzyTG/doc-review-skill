@@ -171,7 +171,7 @@ CREATE_OUTPUT=$(npx wrangler d1 create "$DB_NAME" 2>&1) || {
 }
 
 if [[ -z "${DB_ID:-}" ]]; then
-  DB_ID=$(echo "$CREATE_OUTPUT" | grep -oP '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+  DB_ID=$(echo "$CREATE_OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
   if [[ -z "$DB_ID" ]]; then
     echo "❌ Could not extract database_id from wrangler output:" >&2
     echo "$CREATE_OUTPUT" >&2
