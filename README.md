@@ -14,6 +14,7 @@ An agent skill for Claude Code, Codex, OpenClaw, and similar coding-agent enviro
 
 ## Prerequisites
 
+- **macOS or Linux** (scripts require bash; Windows users need WSL)
 - Cloudflare account with API token (needs **D1 Edit** permission)
 - Node.js (for `npx wrangler`)
 - Any AI agent with shell access (Claude Code, Codex, OpenClaw, Cursor, etc.)
