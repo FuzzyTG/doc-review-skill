@@ -20,6 +20,11 @@ with open(template_path) as f:
 with open(index_path) as f:
     html = f.read()
 
+# Idempotency: skip if already injected
+if 'id="addTooltip"' in html and 'id="commentPanel"' in html:
+    print("ℹ️  Annotations already present — skipping injection")
+    sys.exit(0)
+
 # 1. Extract <style>...</style>
 style_m = re.search(r'(<style>.*?</style>)', tpl, re.DOTALL)
 if not style_m:
