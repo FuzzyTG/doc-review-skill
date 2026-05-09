@@ -43,54 +43,132 @@ If no credentials are found, the agent should guide the user:
 3. **持久化目录**: `$HOME/.doc-review/published-content/<project-name>/` — 存放 meta.json、content.html、index.html（向后兼容 `$HOME/.openclaw/published-content/`）
 4. **content.html 是构建产物** — redeploy 时从源文件重新生成，不要直接改 content.html
 
+## Internal Scripts — Do Not Call Directly
+
+The following scripts are internal to the workflow. They are called automatically by `deploy.sh` or by specific workflow steps. **Do not run them outside of these contexts.**
+
+| Script | Called by | Purpose |
+|--------|----------|---------|
+| `scripts/inject-annotations.sh` | `deploy.sh` (automatically) | Injects annotation UI into index.html |
+| `references/annotations-api.js` | `deploy.sh` (copied to deploy dir) | D1 API for annotations |
+| `references/middleware-template.js` | `deploy.sh` (copied to deploy dir) | Password protection middleware |
+
 ## Workflow
 
 ### 1. Deploy for Review (首次发布)
 
-1. 确定源文件，用 md2html 脚本生成基线 HTML，然后按 HTML Content Rules 做组件增强 → save as `content.html`
-   ```bash
-   # Step 1a: 脚本生成基线（确定性 1:1 映射）
-   bash scripts/md2html.sh <source.md> /tmp/<project-name>/baseline.html
-   # Step 1b: Agent 读取 baseline.html，按 HTML Content Rules 做组件增强，输出 content.html
-   # ⚠️ 只能添加组件包装，不能替换基础 HTML 结构（见 HTML Content Rules）
-   ```
-2. Run render.js to wrap with theme → produces `index.html`:
-   ```bash
-   node references/render.js \
-     --input /tmp/<project-name>/content.html \
-     --output /tmp/<project-name>/index.html \
-     --theme editorial
-   ```
-3. Deploy（annotation injection + D1 creation is fully automatic）:
-   ```bash
-   bash scripts/deploy.sh <project-name> /tmp/<project-name>
-   ```
-4. **部署后立即更新 meta.json**（deploy.sh 自动创建初始 meta.json，agent 需补充源文件信息）:
-   ```bash
-   python3 -c "
-   import json
-   meta_path = '$HOME/.doc-review/published-content/<project-name>/meta.json'
-   with open(meta_path) as f: meta = json.load(f)
-   meta['source'] = '<源文件路径，如 /path/to/your/source/file.md>'
-   meta['sourceType'] = '<markdown|pdf|text|generated>'
-   meta['theme'] = '<实际使用的主题>'
-   with open(meta_path, 'w') as f: json.dump(meta, f, indent=2, ensure_ascii=False)
-   "
-   ```
+This workflow has 4 sequential steps. It is NOT complete until all 4 are done.
+
+#### Pre-flight
+
+Before starting any work, create a checklist:
+
+- [ ] Step 1: Generate HTML content (md2html → component enhancement → content.html)
+- [ ] Step 2: Render with theme (render.js → index.html)
+- [ ] Step 3: Deploy to Cloudflare (deploy.sh — handles annotation injection, D1, secrets)
+- [ ] Step 4: Update meta.json with source info
+
+Track this checklist. Mark each step as you complete it.
+
+---
+
+#### Step 1: Generate HTML content
+
+确定源文件，用 md2html 脚本生成基线 HTML，然后按 HTML Content Rules 做组件增强 → save as `content.html`
+```bash
+# Step 1a: 脚本生成基线（确定性 1:1 映射）
+bash scripts/md2html.sh <source.md> /tmp/<project-name>/baseline.html
+# Step 1b: Agent 读取 baseline.html，按 HTML Content Rules 做组件增强，输出 content.html
+# ⚠️ 只能添加组件包装，不能替换基础 HTML 结构（见 HTML Content Rules）
+```
+
+**Checkpoint**: `/tmp/<project-name>/content.html` exists and is non-empty.
+If checkpoint fails: re-read baseline.html and retry enhancement.
+
+**→ Mark Step 1 complete. Proceed to Step 2.**
+
+---
+
+#### Step 2: Render with theme
+
+Run render.js to wrap with theme → produces `index.html`:
+```bash
+node references/render.js \
+  --input /tmp/<project-name>/content.html \
+  --output /tmp/<project-name>/index.html \
+  --theme editorial
+```
+
+**Checkpoint**: `/tmp/<project-name>/index.html` exists and contains `<html`.
+If checkpoint fails: verify content.html is valid HTML, check theme name, retry.
+
+**→ Mark Step 2 complete. Proceed to Step 3.**
+
+---
+
+#### Step 3: Deploy to Cloudflare
+
+Deploy（annotation injection + D1 creation is fully automatic）:
+```bash
+bash scripts/deploy.sh <project-name> /tmp/<project-name>
+```
+
+deploy.sh automatically handles:
+- **Creates a dedicated D1 database** named `review-<project-name>` (1:1 per project, never reused)
+- Creates the annotations + comments tables
+- **Injects annotation UI** (CSS + HTML + JS) into index.html
+- Copies middleware and API functions
+- Sets `PAGE_PASSWORD` via `wrangler pages secret put` (password never in source code)
+- Generates `wrangler.toml` with the D1 binding
+- Persists content.html, index.html, and meta.json to `$HOME/.doc-review/published-content/<project-name>/`
+
+**Checkpoint**: deploy.sh exits with code 0 and prints the project URL.
+If checkpoint fails: check Cloudflare credentials and wrangler output.
+
+**→ Mark Step 3 complete. Proceed to Step 4.**
+
+---
+
+#### Step 4: Update meta.json
+
+部署后立即更新 meta.json（deploy.sh 自动创建初始 meta.json，agent 需补充源文件信息）:
+```bash
+python3 -c "
+import json
+meta_path = '$HOME/.doc-review/published-content/<project-name>/meta.json'
+with open(meta_path) as f: meta = json.load(f)
+meta['source'] = '<源文件路径，如 /path/to/your/source/file.md>'
+meta['sourceType'] = '<markdown|pdf|text|generated>'
+meta['theme'] = '<实际使用的主题>'
+with open(meta_path, 'w') as f: json.dump(meta, f, indent=2, ensure_ascii=False)
+"
+```
+
+**Checkpoint**: meta.json contains `source`, `sourceType`, and `theme` fields with non-null values.
+If checkpoint fails: read meta.json, identify missing fields, update manually.
+
+**→ Mark Step 4 complete. Proceed to Post-flight.**
+
+---
+
+#### Post-flight
+
+Review your checklist:
+
+- [ ] Step 1 — content.html generated? Non-empty?
+- [ ] Step 2 — index.html rendered with theme? Contains `<html`?
+- [ ] Step 3 — deploy.sh succeeded? URL printed?
+- [ ] Step 4 — meta.json updated with source info?
+
+If ANY step is incomplete, go back and complete it now.
+The workflow ends here, only after all boxes are checked.
+
+---
 
 ### Password Protected With User-Specified Password
 ```bash
 bash scripts/deploy.sh <project-name> /tmp/<project-name> --password <password>
 ```
-
-The deploy script automatically:
-- **Creates a dedicated D1 database** named `review-<project-name>` (1:1 per project, never reused)
-- Creates the annotations + comments tables
-- Copies `functions/api/annotations.js` from `references/annotations-api.js`
-- Copies `functions/_middleware.js` from `references/middleware-template.js`
-- Sets `PAGE_PASSWORD` via `wrangler pages secret put` (password never in source code)
-- Generates `wrangler.toml` with the D1 binding
-- Persists content.html, index.html, and meta.json to `$HOME/.doc-review/published-content/<project-name>/`
 
 **⚠️ 禁止手动传入 db-name 或 db-id。脚本自动管理，确保每个 review page 有独立的 D1 数据库。**
 
@@ -151,6 +229,22 @@ rm -rf $HOME/.doc-review/published-content/<project-name>
 ```
 
 三步都做完才算清理完毕。
+
+## Error Handling
+
+| Failed component | Action |
+|-----------------|--------|
+| `md2html.sh` fails (marked not installed) | Run `npx marked --gfm` directly. Note in output. |
+| `render.js` fails (theme not found) | List available themes in `references/themes/`, retry with valid name. |
+| `deploy.sh` fails (credentials missing) | Print credential setup instructions. Do not abort — guide user through setup. |
+| D1 database creation fails | Check if DB already exists (`wrangler d1 list`). If yes, continue. If no, log error. |
+| `wrangler pages secret put` fails | Retry up to 3 times (deploy.sh handles this). If still failing, log error and continue. |
+| `wrangler pages deploy` fails | Check wrangler output for specific error. Common: project name conflict, auth issue. |
+| meta.json update fails | Log warning. Deploy succeeded — meta.json can be updated manually later. |
+| Source file not found (during redeploy) | Fall back to `$HOME/.doc-review/published-content/<project-name>/content.html`. |
+| All steps fail | Notify user with full error details. Do not go silent. |
+
+**Principle**: Degrade gracefully, never abort silently.
 
 ## meta.json Schema
 
