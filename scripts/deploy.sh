@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Deploy a doc-review page to Cloudflare Pages with mandatory password protection
 # Each deployment automatically creates a dedicated D1 database (1:1 with project)
-# Persistent state stored in ~/.openclaw/published-content/<project-name>/meta.json
 #
 # Usage: deploy.sh <project-name> <directory> [--password <password>]
 #        deploy.sh <project-name> --change-password <new-password>
@@ -12,7 +11,16 @@
 
 set -euo pipefail
 
-DOC_REVIEWS_DIR="$HOME/.openclaw/published-content"
+# ── Resolve published-content directory (fallback chain) ──
+if [[ -n "${DOC_REVIEW_HOME:-}" ]]; then
+  DOC_REVIEWS_DIR="$DOC_REVIEW_HOME/published-content"
+elif [[ -d "$HOME/.doc-review/published-content" ]]; then
+  DOC_REVIEWS_DIR="$HOME/.doc-review/published-content"
+elif [[ -d "$HOME/.openclaw/published-content" ]]; then
+  DOC_REVIEWS_DIR="$HOME/.openclaw/published-content"
+else
+  DOC_REVIEWS_DIR="$HOME/.doc-review/published-content"
+fi
 
 usage() {
   echo "Usage: deploy.sh <project-name> <directory> [--password <password>]" >&2
@@ -108,22 +116,41 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REFERENCES_DIR="$SKILL_DIR/references"
 ANNOTATIONS_API_TEMPLATE="$REFERENCES_DIR/annotations-api.js"
 MIDDLEWARE_TEMPLATE="$REFERENCES_DIR/middleware-template.js"
-CF_CREDS="${CF_CREDS:-${HOME}/.openclaw/credentials/cloudflare.json}"
 
 if [[ ! -f "$DEPLOY_DIR/index.html" ]]; then
   echo "❌ No index.html found in $DEPLOY_DIR" >&2
   exit 1
 fi
 
-for required_file in "$ANNOTATIONS_API_TEMPLATE" "$MIDDLEWARE_TEMPLATE" "$CF_CREDS"; do
+for required_file in "$ANNOTATIONS_API_TEMPLATE" "$MIDDLEWARE_TEMPLATE"; do
   if [[ ! -f "$required_file" ]]; then
     echo "❌ Required file not found: $required_file" >&2
     exit 1
   fi
 done
 
-export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$CF_CREDS")"
-export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$CF_CREDS")"
+# ── Resolve Cloudflare credentials (fallback chain) ──
+if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+  : # Already set in environment — use as-is
+elif [[ -n "${CF_CREDS:-}" && -f "$CF_CREDS" ]]; then
+  export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$CF_CREDS")"
+  export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$CF_CREDS")"
+elif [[ -f "$HOME/.doc-review/credentials/cloudflare.json" ]]; then
+  export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$HOME/.doc-review/credentials/cloudflare.json")"
+  export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$HOME/.doc-review/credentials/cloudflare.json")"
+elif [[ -f "$HOME/.openclaw/credentials/cloudflare.json" ]]; then
+  export CLOUDFLARE_ACCOUNT_ID="$(jq -r '.account_id' "$HOME/.openclaw/credentials/cloudflare.json")"
+  export CLOUDFLARE_API_TOKEN="$(jq -r '.api_token' "$HOME/.openclaw/credentials/cloudflare.json")"
+else
+  echo "❌ Cloudflare credentials not found." >&2
+  echo "" >&2
+  echo "Set credentials using one of these methods:" >&2
+  echo "  1. Export env vars: CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN" >&2
+  echo "  2. Create ~/.doc-review/credentials/cloudflare.json with:" >&2
+  echo '     { "account_id": "...", "api_token": "..." }' >&2
+  echo "  3. Set CF_CREDS=/path/to/credentials.json" >&2
+  exit 1
+fi
 
 # ── Auto-create dedicated D1 database (1:1 per project) ──
 DB_NAME="review-${PROJECT_NAME}"

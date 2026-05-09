@@ -9,15 +9,38 @@ Deploy articles/documents to Cloudflare Pages with inline text annotation suppor
 
 ## Prerequisites
 
-- Cloudflare credentials: `$HOME/.openclaw/credentials/cloudflare.json`
-- Cloudflare API token must have **D1 Edit** permission
+- Cloudflare account with API token (must have **D1 Edit** permission)
+- Node.js (for `npx wrangler`)
+- Cloudflare credentials configured via one of:
+  - Environment variables: `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`
+  - JSON file at `~/.doc-review/credentials/cloudflare.json`
+  - JSON file at `~/.openclaw/credentials/cloudflare.json` (OpenClaw users)
 - D1 database is created automatically by deploy.sh — **禁止手动创建或传入 DB 参数**
+
+### First-Time Setup
+
+If no credentials are found, the agent should guide the user:
+
+1. Ask: "Do you have a Cloudflare account with an API token that has D1 Edit permission?"
+2. If yes → collect account ID and API token → save to `~/.doc-review/credentials/cloudflare.json`:
+   ```bash
+   mkdir -p ~/.doc-review/credentials
+   cat > ~/.doc-review/credentials/cloudflare.json << 'EOF'
+   {
+     "account_id": "YOUR_ACCOUNT_ID",
+     "api_token": "YOUR_API_TOKEN"
+   }
+   EOF
+   chmod 600 ~/.doc-review/credentials/cloudflare.json
+   ```
+3. If no → guide them to create a Cloudflare account and API token with D1 Edit permission
+4. Verify with: `npx wrangler d1 list`
 
 ## Key Rules
 
 1. **Project name must end with `-review`** — deploy.sh enforces this
 2. **每个 review page 有独立的 D1 数据库** — 命名规则 `review-<project-name>`，自动创建，禁止复用
-3. **持久化目录**: `$HOME/.openclaw/published-content/<project-name>/` — 存放 meta.json、content.html、index.html
+3. **持久化目录**: `$HOME/.doc-review/published-content/<project-name>/` — 存放 meta.json、content.html、index.html（向后兼容 `$HOME/.openclaw/published-content/`）
 4. **content.html 是构建产物** — redeploy 时从源文件重新生成，不要直接改 content.html
 
 ## Workflow
@@ -46,7 +69,7 @@ Deploy articles/documents to Cloudflare Pages with inline text annotation suppor
    ```bash
    python3 -c "
    import json
-   meta_path = '$HOME/.openclaw/published-content/<project-name>/meta.json'
+   meta_path = '$HOME/.doc-review/published-content/<project-name>/meta.json'
    with open(meta_path) as f: meta = json.load(f)
    meta['source'] = '<源文件路径，如 /path/to/your/source/file.md>'
    meta['sourceType'] = '<markdown|pdf|text|generated>'
@@ -67,7 +90,7 @@ The deploy script automatically:
 - Copies `functions/_middleware.js` from `references/middleware-template.js`
 - Sets `PAGE_PASSWORD` via `wrangler pages secret put` (password never in source code)
 - Generates `wrangler.toml` with the D1 binding
-- Persists content.html, index.html, and meta.json to `$HOME/.openclaw/published-content/<project-name>/`
+- Persists content.html, index.html, and meta.json to `$HOME/.doc-review/published-content/<project-name>/`
 
 **⚠️ 禁止手动传入 db-name 或 db-id。脚本自动管理，确保每个 review page 有独立的 D1 数据库。**
 
@@ -94,12 +117,12 @@ Present feedback as a table to the user.
 
 When user requests changes based on review feedback:
 
-1. Read `$HOME/.openclaw/published-content/<project-name>/meta.json` — 获取 source 路径和 sourceType
+1. Read `$HOME/.doc-review/published-content/<project-name>/meta.json` — 获取 source 路径和 sourceType
 2. Read D1 feedback（同 Section 2）
 3. **根据 sourceType 决定如何更新**:
    - `markdown`/`text`: 从 `source` 路径重新读取源文件 → 用 `md2html.sh` 重新生成基线 → 按 HTML Content Rules 做组件增强 → content.html
-   - `pdf`: 源文件还在就重新提取，不在就用 `$HOME/.openclaw/published-content/<project-name>/content.html`
-   - `generated`: 用 `$HOME/.openclaw/published-content/<project-name>/content.html` 作为基础修改
+   - `pdf`: 源文件还在就重新提取，不在就用 `$HOME/.doc-review/published-content/<project-name>/content.html`
+   - `generated`: 用 `$HOME/.doc-review/published-content/<project-name>/content.html` 作为基础修改
 4. Render with same theme → `index.html`
 5. **使用完全相同的 project-name** redeploy:
    ```bash
@@ -124,7 +147,7 @@ npx wrangler pages project delete <project-name>
 npx wrangler d1 delete review-<project-name>
 
 # 3. 删除本地持久化目录
-rm -rf $HOME/.openclaw/published-content/<project-name>
+rm -rf $HOME/.doc-review/published-content/<project-name>
 ```
 
 三步都做完才算清理完毕。
@@ -153,15 +176,17 @@ sourceType values:
 
 ## Environment Setup
 
-All wrangler commands need:
+deploy.sh resolves Cloudflare credentials automatically using this fallback chain:
+
+1. **Env vars already set** (`CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`) → used as-is
+2. **`CF_CREDS` env var** → reads from that file path
+3. **`~/.doc-review/credentials/cloudflare.json`** → default for standalone installs
+4. **`~/.openclaw/credentials/cloudflare.json`** → backward compat for OpenClaw users
+
+For manual wrangler commands outside deploy.sh (e.g., reading feedback), set env vars first:
 ```bash
-source <(python3 -c "
-import json
-with open('$HOME/.openclaw/credentials/cloudflare.json') as f:
-    c = json.load(f)
-print(f'export CLOUDFLARE_ACCOUNT_ID={c[\"account_id\"]}')
-print(f'export CLOUDFLARE_API_TOKEN={c[\"api_token\"]}')
-")
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+export CLOUDFLARE_API_TOKEN="your-api-token"
 ```
 
 ## Notes
@@ -170,7 +195,7 @@ print(f'export CLOUDFLARE_API_TOKEN={c[\"api_token\"]}')
 - Comments stored with author name "Reviewer" by default (no login required)
 - D1 free tier: 5M reads/day, 100K writes/day — more than enough
 - Annotation matching is text-based; if source text changes, old highlights disappear naturally
-- Persistent state lives in `$HOME/.openclaw/published-content/<project-name>/` — shared across all agents
+- Persistent state lives in `$HOME/.doc-review/published-content/<project-name>/` (falls back to `$HOME/.openclaw/published-content/` for existing OpenClaw installs)
 - **Theme files are synced from `cloudflare-pages`** — do not edit `themes/` or `render.js` here directly. Modify in `cloudflare-pages/references/` then run `bash scripts/sync-themes.sh (from cloudflare-pages skill)`
 
 ## HTML Content Rules

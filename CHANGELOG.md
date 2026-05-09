@@ -1,5 +1,38 @@
 # Changelog
 
+## v4.0.0
+
+### Breaking Changes
+
+- **Default persistence path changed**: `~/.openclaw/published-content/` → `~/.doc-review/published-content/`. Existing data at the old path is still discovered automatically (no migration required to keep working), but new deployments go to the new path.
+- **Credential resolution rewritten**: deploy.sh no longer hardcodes `~/.openclaw/credentials/cloudflare.json`. Uses a fallback chain: env vars → `CF_CREDS` → `~/.doc-review/credentials/` → `~/.openclaw/credentials/`.
+
+### Added
+
+- **Multi-agent support**: works with Claude Code, Codex, Cursor, OpenClaw, and any agent with shell access
+- **Credential fallback chain**: env vars checked first (skips file read entirely), then `~/.doc-review/`, then `~/.openclaw/` for backward compat
+- **`scripts/migrate.sh`**: one-time migration from `~/.openclaw/published-content/` to `~/.doc-review/published-content/` with `--dry-run` and `--yes` flags, creates symlink at old path
+- **First-time setup flow** in SKILL.md: guides new users through Cloudflare credential setup
+- **Claude Code installation instructions** in README
+- **Paste-to-AI install method** in README
+
+### Changed
+
+- README rewritten: agent-agnostic (no longer OpenClaw-specific), multi-agent install sections, trigger phrases
+- SKILL.md: environment-aware credential and path documentation
+- deploy.sh: published-content path resolved via fallback chain (`DOC_REVIEW_HOME` env var → `~/.doc-review/` → `~/.openclaw/` → default `~/.doc-review/`)
+
+### Migration Guide (from v3.0.0)
+
+1. **Update skill files**: `git pull` in your skills directory
+2. **Optional migration** (if you want all data in the new location):
+   ```bash
+   bash scripts/migrate.sh --dry-run   # preview
+   bash scripts/migrate.sh --yes       # execute
+   ```
+3. **No credential changes needed**: deploy.sh finds credentials at `~/.openclaw/credentials/cloudflare.json` automatically
+4. **Without migration**: everything still works — deploy.sh checks `~/.openclaw/published-content/` as a fallback
+
 ## v3.0.0
 
 ### Breaking Changes
